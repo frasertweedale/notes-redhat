@@ -3,6 +3,7 @@ Using FreeIPA with Puppet
 
 Existing articles:
 
+- http://www.freeipa.org/page/Using_IPA%27s_CA_for_Puppet
 - http://jcape.name/2012/01/16/using-the-freeipa-pki-with-puppet/
 - http://docs.puppetlabs.com/puppet/3/reference/config_ssl_external_ca.html
 - http://docs.puppetlabs.com/guides/passenger.html
