@@ -67,6 +67,33 @@ Dates and deliverables
 - Utility workshop/demo Oct 28
 
 
+Concepts and terminology
+========================
+
+User
+
+  A "user" a human user.  This does not preclude automation.  From
+  §7.3.9 "Multiple Users and Auditing":
+
+    This standard assumes that there may be multiple users of the
+    system located at the site of the master. It provides a method
+    to authenticate each of the users separately from each other and
+    from the master itself.
+
+    The intent of this principle is to permit the outstation to
+    conclusively identify the individual user (not just the device)
+    that transmits any protocol message.
+
+  From Table A-11 "User Role Definitions", user roles include
+  VIEWER, OPERATOR, ENGINEER and INSTALLER, among others.
+
+Authority
+
+  *Authority* to the DNP3 concept, and not a *certificate
+  authority*.  Where the latter is meant, the full term *certificate
+  authority* or abbreviation *CA* will be used.
+
+
 DNP3 PKI requirements
 =====================
 
@@ -165,11 +192,6 @@ Another point about key generation and distribution is made in
 
 Provisioning
 ============
-
-(Note that *authority* in the following material refers to the DNP3
-concept, and not a *certificate authority*.  Where the latter is
-meant, the full term *certificate authority* or abbreviation *CA*
-will be used.)
 
 - AFAICT the DNP3 *master* and *authority* may reside on the same
   host, though they are always referred to as separate parties.
