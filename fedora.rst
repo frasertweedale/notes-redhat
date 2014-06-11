@@ -24,3 +24,8 @@ Disable the default firewall::
 
   $ sudo systemctl disable firewalld
   $ sudo systemctl stop firewalld
+
+Open a port in the default firewall::
+
+  $ sudo firewall-cmd --add-port=8140/tcp               # temporary
+  $ sudo firewall-cmd --add-port=8140/tcp --permanent   # requires svc restart
