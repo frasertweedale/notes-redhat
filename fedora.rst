@@ -20,12 +20,22 @@ Networking
 Firewall
 --------
 
-Disable the default firewall::
+Disable ``firewalld``::
 
   $ sudo systemctl disable firewalld
   $ sudo systemctl stop firewalld
 
-Open a port in the default firewall::
+List the current configuration::
 
-  $ sudo firewall-cmd --add-port=8140/tcp               # temporary
-  $ sudo firewall-cmd --add-port=8140/tcp --permanent   # requires svc restart
+  $ sudo firewall-cmd --list-all
+
+Open a port in the default zone::
+
+  $ sudo firewall-cmd --add-port=8140/tcp [--permanent]
+
+The ``--permanent`` flag causes the change to take effect the next
+time the service starts.
+
+Open ports for a service in the default zone::
+
+  $ sudo firewall-cmd --add-service=dns [--permanent]
