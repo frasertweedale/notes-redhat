@@ -102,7 +102,17 @@ to restore a profile that exists *only in LDAP* would be an error.
 LDAP schema
 ^^^^^^^^^^^
 
-[MORE TO COME]
+Profiles will be stored under a new OU::
+
+  dn: ou=profiles,{rootSuffix}
+  objectClass: top
+  objectClass: organizationalUnit
+  ou: profiles
+
+LDAP-based profiles conform to the following schema::
+
+  dn: cn=<profileId>,profiles,{rootSuffix}
+  profileContent;binary:
 
 
 ProfileSubsystem
