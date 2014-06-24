@@ -31,6 +31,10 @@ System profiles
 IPA should own its certificate profile
   https://fedorahosted.org/freeipa/ticket/4002
 
+.. _Top-level Tree: http://pki.fedoraproject.org/wiki/Top-Level_Tree
+.. _System profiles: https://fedorahosted.org/pki/ticket/778
+.. _Lightweight sub-CAs: http://pki.fedoraproject.org/wiki/Lightweight_sub-CAs
+
 
 Use Cases
 ---------
@@ -57,42 +61,96 @@ Linux (Fedora, RHEL, Debian).
 Design
 ------
 
+Profile scope
+^^^^^^^^^^^^^
+
+Because profiles are currently stored as configuration for a
+particular CA subsystem, it follows that LDAP profiles will be
+stored as attributes of a particular CA or sub-CA subsystem.  This
+will be simpler to implement and ensure that deployments prior to,
+or not using the `Top-level Tree`_ capability can take advantage of
+LDAP profile storage.
+
+
+Relationship to file-based profile storage
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Profile *creation* will store the new profile in LDAP, so that it
+will be replicated.
+
+*Modification* of a file-based profile will result in the modified
+profile being stored in LDAP, so that it will be replicated.
+Consequently, the LDAP profile storage must take precedence over
+file-based profile storage in the profile lookup process.
+
+Because LDAP and file-based versions of a single profile may now
+exist at the same time (the LDAP version being the active version),
+the behaviour of the *delete profile* operation needs to be
+clarified.  Because `System profiles`_ proposes using the shared
+system profiles (which an instance will not be able to delete), I
+propose that Dogtag prohibit the deletion of profiles that have a
+file-based version (whether or not there is also an LDAP version).
+
+If there is a use case for restoring a profile to the default
+version distributed or installed by Dogtag (where it exists), a new
+*restore profile* operation can be implemented.  This operation
+would remove the (modified) profile from the LDAP directory.  The
+file-based version will then become the active version.  Attempting
+to restore a profile that exists *only in LDAP* would be an error.
+
+
 LDAP schema
 ^^^^^^^^^^^
 
-FILL ME IN
+[MORE TO COME]
 
 
 ProfileSubsystem
 ^^^^^^^^^^^^^^^^
 
+Names of classes and methods are indicative and open to discussion.
+
 Changes to the ``ProfileSubsystem`` class will be necessary.  Since
 profiles will now be stored both on the file system (in the case of
 default or system profiles) and in LDAP, it may be appropriate to
 move ``ProfileSubsystem`` to ``FileProfileSubsystem`` essentially
-unchanged, write ``LDAPProfileService implements IProfileSubsystem``
-for handling the LDAP profile storage, and implementing a top-level
-``AggregatingProfileSubsystem implements IProfileSubsystem`` for
-dispatching and aggregating calls to one or more
-``IProfileSubsystem`` instances as appropriate.
+unchanged, introduce ``LDAPProfileSubsystem implements
+IProfileSubsystem`` for handling the LDAP profile storage, and
+reimplementing ``ProfileSubsystem`` an an implementation of
+``IProfileSubsystem`` that dispatches or aggregates calls to a
+``FileProfileSubsystem``, ``LDAPProfileSubsystem`` or both, as
+appropriate.
 
 The ``IProfileSubsystem`` API may need some minor changes to
 facilitate this, e.g. an exception or result type indicating that
-the implementation is unable to perform some action.  Though
-potentially useful, if such changes turn out to be not strictly
-required to implement LDAP profile storage, they shall be deferred.
+the implementation is unable to perform some action (e.g. the
+``FileProfileSubsystem`` might prohibit deletion; see above).  If
+such changes turn out to be not strictly required to implement LDAP
+profile storage in a clean and safe manner, they shall be deferred.
 
 
 API changes
 ^^^^^^^^^^^
 
-The REST API should not require any changes.
+The REST API should not require any significant changes.  Minor
+changes that may be required include:
+
+* There may be some new failure conditions (e.g., deletion of a
+  particular profile prohibited; see above).  Appropriate HTTP
+  response status codes and response bodies should be returned.
+
+* A *restore profile* operation may be required (see above).  Design
+  of this API change is deferred until it is decided that it is
+  required.
+
+Any changes to the REST API will be reflected in the Python API.
 
 
 Access control considerations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-FILL ME IN
+Currently, only *Administrators* can create, modify or delete
+profiles.  No changes to this access control are proposed.
 
 
 Implementation
@@ -107,25 +165,44 @@ Implementation
 Major configuration options and enablement
 ------------------------------------------
 
-FILL ME IN
-
 .. Any configuration options? Any commands to enable/disable the
    feature or turn on/off its parts?
+
+``CS.cfg`` may need to be updated to instantiate any profile
+subsystems, including new subsystems, in the correct manner and, if
+significant, the correct order.  The main considerations here are
+that ``LDAPProfileSubsystem`` needs to be able to communicate with
+the LDAP server, and the main ``ProfileSubsystem`` needs to be able
+to dispatch requests to both the ``LDAPProfileSubsystem`` and the
+``FileProfileSubsystem`` as appropriate.
 
 
 Cloning
 -------
 
-FILL ME IN
+Implications of cloning a Dogtag instance that has not been upgraded
+to a version with LDAP profile storage need to be considered.
 
-.. Any impact on cloning?
+* Will replication of new/modified LDAP profiles from the clone to
+  the original occur?
+
+* If so, will the presence of profile data in the LDAP database of a
+  version that has not been upgraded to a version with support for
+  LDAP profiles cause any issues, including issues when the original
+  *is* upgraded to a version with support for LDAP profiles?
 
 
 Updates and Upgrades
 --------------------
 
-Upgrade scripts should detect added or modified profiles and move
-these into the LDAP profile storage.
+``CS.cfg`` may require updating, as explained above.
+
+Upgrade scripts must detect added or modified profiles and move
+these into the LDAP profile storage.  Added profiles will then be
+removed from the CA subsystem profiles directory, and modified
+profiles will be restored to a pristine state, which will ensure a
+smooth changeover to a `System profiles`_ directory, when this
+feature is implemented.
 
 Users should be alerted (via release notes) of this feature, and
 instructed to disable any custom mechanisms they may have in place
@@ -165,7 +242,7 @@ External Impact
 History
 -------
 
-**ORIGINAL DESIGN DATE**: [SEE BELOW]
+**ORIGINAL DESIGN DATE**: June 20, 2014
 
 .. Provide the original design date in 'Month DD, YYYY' format (e.g.
    September 5, 2013).
