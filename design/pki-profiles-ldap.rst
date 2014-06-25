@@ -102,6 +102,43 @@ to restore a profile that exists *only in LDAP* would be an error.
 LDAP schema
 ^^^^^^^^^^^
 
+The existing profile registry stores the path to the profile
+configuration file and a reference to the enrollment implementation.
+For LDAP profiles, the data that would be stored in the profile
+configuration file will be stored as binary data, and the enrollment
+class will be stored as a "classId" attribute.
+
+The ``classId`` and ``profileConfig`` attribute types and ``profile``
+object class will be added to ``schema.ldif``::
+
+  dn: cn=schema
+  changetype: modify
+  add: attributeTypes
+  attributeTypes: ( classId-oid
+    NAME 'classId'
+    DESC 'CMS defined attribute'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.40
+    X-ORIGIN 'user defined' )
+
+  dn: cn=schema
+  changetype: modify
+  add: attributeTypes
+  attributeTypes: ( profileConfig-oid
+    NAME 'profileConfig'
+    DESC 'CMS defined attribute'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.40
+    X-ORIGIN 'user defined' )
+
+  dn: cn=schema
+  changetype: modify
+  add: objectClasses
+  objectClasses: ( profile-oid
+    NAME 'profile'
+    DESC 'CMS defined class'
+    SUP top
+    STRUCTURAL MUST cn MAY ( classId $ profileConfig )
+    X-ORIGIN 'user defined' )
+
 Profiles will be stored under a new OU::
 
   dn: ou=profiles,{rootSuffix}
@@ -109,10 +146,19 @@ Profiles will be stored under a new OU::
   objectClass: organizationalUnit
   ou: profiles
 
-LDAP-based profiles conform to the following schema::
+LDAP-based profile records will look like::
 
   dn: cn=<profileId>,profiles,{rootSuffix}
-  profileContent;binary:
+  objectClass: top
+  objectClass: profile
+  cn: <profileId>
+  classId: <classId>
+  profileConfig;binary:
+
+
+Please provide feedback on the LDAP schema, as I have not had much
+experience with LDAP before and would be surprised if I got things
+right on the first attempt.
 
 
 ProfileSubsystem
