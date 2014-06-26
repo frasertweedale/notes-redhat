@@ -98,6 +98,39 @@ would remove the (modified) profile from the LDAP directory.  The
 file-based version will then become the active version.  Attempting
 to restore a profile that exists *only in LDAP* would be an error.
 
+(alee) I understand why you have profiles in both LDAP and file
+format.  However, I think this makes things complicated. My
+preference would be to have all new systems maintain their profiles
+solely in LDAP, rather than some admixture.
+
+There is a precedent for moving data that was formerly in files to
+ldap - and that was the data in the security domain. Originally,
+this data was in files. At some point, we changed the servlets that
+update the security domain to use LDAP instead, and used a parameter
+in CS.cfg to determine whether the data was in LDAP or files.
+
+Now in this case, we have a few additional considerations:
+
+* How do we do a migration from files to LDAP?  We want to be able
+  to update system defaults if the default profile is being used.
+  People are used to being able to change profiles either through
+  the console or through the command line. It is relatively easy to
+  modify and read profile files. We need to keep this operation
+  easy. For this ability, we should add relevant functionality to
+  the pki CLI interface to be able to edit profiles.
+
+* There is currently a 10.3 ticket to create a database upgrade
+  framework. One this framework is in place, it can be used to
+  perform a migration from files to LDAP, as well as modify default
+  profiles when the default profile is being used.
+
+* Note that profilea are read at startup. This means that we need
+  some mechanism to trigger the restart/ reloading of the
+  ProfileSubsystem on clones, without a restart. One such mechanism
+  would be to store when each clone last read in the profiles. This
+  could be checked in the maintenance thread, and updates/restarted
+  as needed.
+
 
 LDAP schema
 ^^^^^^^^^^^
