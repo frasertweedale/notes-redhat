@@ -19,6 +19,10 @@ LDAP-based profile storage in Dogtag.
 It is furthermore noted that according to *alee*, LDAP profile
 storage and replication has been "on the wishlist" for a while.
 
+This feature is slated for version **10.3**, or, if the `database
+upgrade framework`_ feature is ready in time, a future **10.2.x**
+release.
+
 
 Associated Bugs and Tickets
 ---------------------------
@@ -33,6 +37,7 @@ IPA should own its certificate profile
 
 .. _Top-level Tree: http://pki.fedoraproject.org/wiki/Top-Level_Tree
 .. _System profiles: https://fedorahosted.org/pki/ticket/778
+.. _Database upgrade framework: https://fedorahosted.org/pki/ticket/710
 .. _Lightweight sub-CAs: http://pki.fedoraproject.org/wiki/Lightweight_sub-CAs
 
 
@@ -75,6 +80,26 @@ LDAP profile storage.
 Relationship to file-based profile storage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+In introducing LDAP-based profiles, there exist two main options for
+how file-based profiles are treated: file-based profiles can be
+replaced by LDAP-based profiles, or file-based profiles can continue
+to be used for system/default profiles.
+
+
+LDAP-based profiles only
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+All profiles will be stored in LDAP.
+
+There is currently a 10.3 ticket to create a `database upgrade
+framework`_. Once this framework is in place, it can be used to
+perform a migration from files to LDAP, as well as modify default
+profiles when the default profile is being used.
+
+
+File-based system profiles
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Profile *creation* will store the new profile in LDAP, so that it
 will be replicated.
 
@@ -98,7 +123,7 @@ would remove the (modified) profile from the LDAP directory.  The
 file-based version will then become the active version.  Attempting
 to restore a profile that exists *only in LDAP* would be an error.
 
-(alee) I understand why you have profiles in both LDAP and file
+(*alee*) I understand why you have profiles in both LDAP and file
 format.  However, I think this makes things complicated. My
 preference would be to have all new systems maintain their profiles
 solely in LDAP, rather than some admixture.
@@ -108,28 +133,6 @@ ldap - and that was the data in the security domain. Originally,
 this data was in files. At some point, we changed the servlets that
 update the security domain to use LDAP instead, and used a parameter
 in CS.cfg to determine whether the data was in LDAP or files.
-
-Now in this case, we have a few additional considerations:
-
-* How do we do a migration from files to LDAP?  We want to be able
-  to update system defaults if the default profile is being used.
-  People are used to being able to change profiles either through
-  the console or through the command line. It is relatively easy to
-  modify and read profile files. We need to keep this operation
-  easy. For this ability, we should add relevant functionality to
-  the pki CLI interface to be able to edit profiles.
-
-* There is currently a 10.3 ticket to create a database upgrade
-  framework. One this framework is in place, it can be used to
-  perform a migration from files to LDAP, as well as modify default
-  profiles when the default profile is being used.
-
-* Note that profilea are read at startup. This means that we need
-  some mechanism to trigger the restart/ reloading of the
-  ProfileSubsystem on clones, without a restart. One such mechanism
-  would be to store when each clone last read in the profiles. This
-  could be checked in the maintenance thread, and updates/restarted
-  as needed.
 
 
 LDAP schema
@@ -197,12 +200,25 @@ right on the first attempt.
 ProfileSubsystem
 ^^^^^^^^^^^^^^^^
 
-Names of classes and methods are indicative and open to discussion.
+Changes to the ``ProfileSubsystem`` will be necessary.  Names of
+classes and methods are indicative and open to discussion.
 
-Changes to the ``ProfileSubsystem`` class will be necessary.  Since
-profiles will now be stored both on the file system (in the case of
-default or system profiles) and in LDAP, it may be appropriate to
-move ``ProfileSubsystem`` to ``FileProfileSubsystem`` essentially
+
+LDAP-based profiles only
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``ProfileSubsystem`` will need to work with the database instead
+of the filesystem.  This should require no significant changes to
+its public API.
+
+
+File-based system profiles
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Since profiles will now be stored both on the file system (in the
+case of system/default profiles) and in LDAP, it may be appropriate
+to move ``ProfileSubsystem`` to ``FileProfileSubsystem`` essentially
 unchanged, introduce ``LDAPProfileSubsystem implements
 IProfileSubsystem`` for handling the LDAP profile storage, and
 reimplementing ``ProfileSubsystem`` an an implementation of
@@ -216,6 +232,21 @@ the implementation is unable to perform some action (e.g. the
 ``FileProfileSubsystem`` might prohibit deletion; see above).  If
 such changes turn out to be not strictly required to implement LDAP
 profile storage in a clean and safe manner, they shall be deferred.
+
+
+Keeping profiles up to date
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Currently, profiles are read at startup. This means that we need
+some mechanism to trigger the restart/reloading of the
+``ProfileSubsystem`` on clones, without a restart.  One such
+mechanism would be to store when each clone last read in the
+profiles.  This could be checked in the maintenance thread, and
+updated/restarted as needed.
+
+(*ftweedal*) Is there any way to be notified when a certain part of
+the database has changed due to LDAP replication?  Or would this be
+a poll operation?
 
 
 API changes
@@ -242,6 +273,48 @@ Currently, only *Administrators* can create, modify or delete
 profiles.  No changes to this access control are proposed.
 
 
+Command-line utilities
+^^^^^^^^^^^^^^^^^^^^^^
+
+Editing of file-based profiles has until now been a simple matter of
+editing the file and restarting Dogtag so that profile changes take
+effect.  With profiles now to be stored in LDAP, new mechanisms are
+needed to edit profiles.
+
+
+Edit profile
+~~~~~~~~~~~~
+
+The ``pki profile edit <profile-id>`` command will be added.
+With due consideration for authentication and authorisation, the
+behaviour of this command will be:
+
+#. Retrieve the current profile content (the same format as
+   file-based profiles).
+
+#. Save the content to a temporary file.
+
+#. Invoke an editor on the file.  Respect the ``EDITOR`` environment
+   if set, otherwise invoke ``vi(1)``.  The user makes changes,
+   saves the file and quits the editor.
+
+#. If changes were made to the profile, store the updated profile in
+   the database.  If no changes were made, report that no changes to
+   the profile were detected.
+
+
+Other operations
+~~~~~~~~~~~~~~~~
+
+Other useful operations that could be implement as subcommands of
+``pki profile`` include:
+
+* Showing a diff between a profile and the system/default version of
+  that profile (if it exists).
+
+* Restoring a profile to the system/default version (if it exists).
+
+
 Implementation
 --------------
 
@@ -259,26 +332,43 @@ Major configuration options and enablement
 
 ``CS.cfg`` may need to be updated to instantiate any profile
 subsystems, including new subsystems, in the correct manner and, if
-significant, the correct order.  The main considerations here are
-that ``LDAPProfileSubsystem`` needs to be able to communicate with
-the LDAP server, and the main ``ProfileSubsystem`` needs to be able
-to dispatch requests to both the ``LDAPProfileSubsystem`` and the
+significant, the correct order.
+
+
+LDAP-based profiles only
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``ProfileSubsystem`` will need to be initialised such that it
+has read/write access to the database.
+
+
+File-based system profiles
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``LDAPProfileSubsystem`` needs to have read/write access to the
+database, and the main ``ProfileSubsystem`` needs to be able to
+dispatch requests to both the ``LDAPProfileSubsystem`` and the
 ``FileProfileSubsystem`` as appropriate.
 
 
 Cloning
 -------
 
-Implications of cloning a Dogtag instance that has not been upgraded
-to a version with LDAP profile storage need to be considered.
+10.3 -> 10.3
+  This proposal does not present any new concerns for cloning a 10.3
+  database using Dogtag 10.3.
 
-* Will replication of new/modified LDAP profiles from the clone to
-  the original occur?
+10.3 -> 10.2
+  Cloning a 10.3 database using Dogtag 10.2 will be prohibited.
 
-* If so, will the presence of profile data in the LDAP database of a
-  version that has not been upgraded to a version with support for
-  LDAP profiles cause any issues, including issues when the original
-  *is* upgraded to a version with support for LDAP profiles?
+10.2 -> 10.3
+  Cloning a 10.2 database with Dogtag 10.3 will be permitted.  The
+  10.3 installation will include LDAP-based profiles.  Modifying
+  (file-based) profiles on the 10.2 installation will have no effect
+  on the 10.3 installation.  This is a continuation of the present
+  behaviour with file-based profiles.  Upgrading the 10.2
+  installation to 10.3 at a later time may result in conflicts.  A
+  strategy for dealing with these conflicts needs to be determined.
 
 
 Updates and Upgrades
@@ -286,17 +376,55 @@ Updates and Upgrades
 
 ``CS.cfg`` may require updating, as explained above.
 
-Upgrade scripts must detect added or modified profiles and move
-these into the LDAP profile storage.  Added profiles will then be
-removed from the CA subsystem profiles directory, and modified
-profiles will be restored to a pristine state, which will ensure a
-smooth changeover to a `System profiles`_ directory, when this
-feature is implemented.
-
 Users should be alerted (via release notes) of this feature, and
 instructed to disable any custom mechanisms they may have in place
-to replicate profile changes between replica, where LDAP replication
-agreements are in place.
+to replicate profile changes between clones.
+
+Further detail on upgrade implications for the two main approaches
+follows.
+
+
+LDAP-based profiles only
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The 10.3 migration process must move all profiles into LDAP.
+File-based profiles will be left on the filesystem for the time
+being, but will no longer be used.
+
+A database attribute will record whether a profile was user-defined
+or user-modified.  Because updates to default profiles are rare,
+this design proposal does not specify a mechanism for handling them.
+Such changes should be managed on a case-by-case basis by migration
+scripts, subject to the following:
+
+* Migration scripts *must not* simply overwrite a modified version
+  of a default profile.
+
+* A migration script *should* inform the administrator performing
+  the upgrade when a default profile could not be updated due to
+  modifications.
+
+* A migration script *may* implement a mechanism for merging changes
+  to a default profile, provided the administrator is notified when
+  this mechanism is invoked and copies of the content involved in
+  the merge are made available for inspection.
+
+
+File-based system profiles
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Upgrade scripts must detect added or modified profiles and move
+these into the LDAP profile storage.
+
+Added profiles will then be removed from the CA subsystem profiles
+directory, and modified profiles will be restored to a pristine
+state, which will ensure:
+
+* updates to default profiles can always be written to the
+  corresponding file-based profiles without conflict;
+
+* a smooth changeover to a `System profiles`_ directory will be
+  possible, if this proposal is implemented.
 
 
 Tests
