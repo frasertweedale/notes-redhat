@@ -141,11 +141,12 @@ LDAP schema
 The existing profile registry stores the path to the profile
 configuration file and a reference to the enrollment implementation.
 For LDAP profiles, the data that would be stored in the profile
-configuration file will be stored as binary data, and the enrollment
-class will be stored as a "classId" attribute.
+configuration file will be stored as octet strings, and the
+enrollment class will be stored as a "classId" attribute.
 
-The ``classId`` and ``profileConfig`` attribute types and ``profile``
-object class will be added to ``schema.ldif``::
+The ``classId`` (Directory String) and ``profileConfig`` (Octet
+String) attribute types and ``profile`` object class will be added
+to ``schema.ldif``::
 
   dn: cn=schema
   changetype: modify
@@ -153,7 +154,7 @@ object class will be added to ``schema.ldif``::
   attributeTypes: ( classId-oid
     NAME 'classId'
     DESC 'CMS defined attribute'
-    SYNTAX 1.3.6.1.4.1.1466.115.121.1.40
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
     X-ORIGIN 'user defined' )
 
   dn: cn=schema
@@ -184,12 +185,12 @@ Profiles will be stored under a new OU::
 
 LDAP-based profile records will look like::
 
-  dn: cn=<profileId>,profiles,{rootSuffix}
+  dn: cn=<profileId>,ou=profiles,{rootSuffix}
   objectClass: top
   objectClass: profile
   cn: <profileId>
   classId: <classId>
-  profileConfig;binary:
+  profileConfig: <octet string>
 
 
 Please provide feedback on the LDAP schema, as I have not had much
@@ -242,11 +243,16 @@ some mechanism to trigger the restart/reloading of the
 ``ProfileSubsystem`` on clones, without a restart.  One such
 mechanism would be to store when each clone last read in the
 profiles.  This could be checked in the maintenance thread, and
-updated/restarted as needed.
+updated/restarted as needed.  (There would be no need for the
+maintenance thread to monitor file-based profiles for changes, as
+these should only change if updated from RPMs.)
 
 (*ftweedal*) Is there any way to be notified when a certain part of
 the database has changed due to LDAP replication?  Or would this be
 a poll operation?
+
+(*simo*) For detecting changes on replicas you can use a persistent
+search or a syncrepl operation (newest DS).
 
 
 API changes
@@ -272,6 +278,19 @@ Access control considerations
 Currently, only *Administrators* can create, modify or delete
 profiles.  No changes to this access control are proposed.
 
+(*alee*) Dogtag uses its own system of acls, which are enforced on
+the servlet level.  Creating/changing profiles are done through
+servlets and access controls are enforced there.  This allows us to
+do complex things like requiring agents to disable a profile before
+an admin can edit it.
+
+Users do not access the dogtag internal db directly.  Rather, the db
+is only accessed via a special system user that performs operations
+on behalf of the server.
+
+In any case, this mechanism is not going to change.  We will keep
+the same Dogtag servlet ACLs, so the behavior will be the same.
+
 
 Command-line utilities
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -289,8 +308,9 @@ The ``pki profile edit <profile-id>`` command will be added.
 With due consideration for authentication and authorisation, the
 behaviour of this command will be:
 
-#. Retrieve the current profile content (the same format as
-   file-based profiles).
+#. Retrieve the current profile content (in the existing key-value
+   format used for file-based profiles, rather than LDIF, JSON or
+   other.)
 
 #. Save the content to a temporary file.
 
@@ -299,8 +319,11 @@ behaviour of this command will be:
    saves the file and quits the editor.
 
 #. If changes were made to the profile, store the updated profile in
-   the database.  If no changes were made, report that no changes to
-   the profile were detected.
+   the database (the change will be automatically replicated to
+   clones).  If no changes were made, report that no changes to the
+   profile were detected.
+
+#. Remove the temporary file.
 
 
 Other operations
