@@ -28,8 +28,8 @@ influence the sub-CA change.
 - http://pki.fedoraproject.org/wiki/PKI_Instance_Deployment
 
 
-Top-level basedn
-~~~~~~~~~~~~~~~~
+`Top-level Tree`_
+~~~~~~~~~~~~~~~~~
 
 A design proposal to avoid proliferation of replication agreements,
 justified by FreeIPA use cases (including lightweight sub-CAs).  The
@@ -37,7 +37,7 @@ proposed change is to enhance ``pkispawn`` to create subsystem
 databases as subtrees under a top-level tree, such that a single
 replication agreement can replicate all subsystems.
 
-- http://pki.fedoraproject.org/wiki/Top_level_basedn
+.. _Top-level Tree: http://pki.fedoraproject.org/wiki/Top-Level_Tree
 
 
 Use cases
@@ -79,45 +79,9 @@ Linux (Fedora, RHEL, Debian).
 Design
 ------
 
-There are several possible solutions.
-
-Solution 1
-~~~~~~~~~~
-
-Enable deployment of multiple CA webapps within a single Tomcat
-instance.  In this case, the sub-CA is treated exactly the same as
-other subsystems like the KRA, which can exist within the same
-Tomcat instance as the CA (and so have the same ports).  These
-systems share a certificate database, and some system certifcates
-(subsystem certificate and SSL server certificate), but have
-separate logging, audit logging (and audit signing certificate), and
-UI pages.  They also have separate directory subtrees (which contain
-different users, groups and ACLs).
-
-Solution 1 has several distinct advantages:
-
-* It would be easy to implement.  Just extend ``pkispawn`` to create
-  multiple CAs with user-defined paths.  ``pkispawn`` already knows
-  how to create sub-CA's.
-
-* CAs would be referenced by different paths /ca1, /ca2 etc.
-
-* No changes would be needed to any interfaces, and no special
-  profiles would be needed.  Whatever interfaces are available for
-  the CA would be available for the sub-CAs.  The sub-CAs are just
-  full fledged CAs, configured as sub-CAs and hosted on the same
-  instance.
-
-* It is very easy to separate out the sub-CA subsystems to separate
-  instances, if need be (though this is not a requirement).
-
-
-Solution 2
-~~~~~~~~~~
-
 Sub-CA functionality resides in the root CA webapp.  In essence, a
 sub-CA would consist of a name mapped to a new signing certificate.
-In *Solution 2*, almost all resources could be shared, including:
+Almost all resources could be shared, including:
 
 - Certificate database
 - Tomcat instance (ports, etc.)
@@ -135,6 +99,7 @@ In *Solution 2*, almost all resources could be shared, including:
 - Admin interface
 - CRL generation by the main CA (**need to confirm this would work**)
 - Self test framework
+- Profiles
 
 With this solution, it would be very difficult to separate a sub-CA
 out into a separate instance.  We could develop scripts to separate
@@ -147,69 +112,26 @@ Creating sub-CAs
 ~~~~~~~~~~~~~~~~
 
 Creation of sub-CAs at any time after the initial spawning of an
-instance is a requirement.  Options for doing this include:
+instance is a requirement.
 
-Solution 1
-^^^^^^^^^^
+We will provide an API for creating a sub-CA.  This could be part of
+the CA webapp's API, or the ROOT webapp.  Preferably, restart would
+not be necessary, however, if necessary, it must be able to be
+performed without manual intervention.
 
-Modify ``pkispawn`` to be able to spawn sub-CAs.  Users and software
-wishing to create a new sub-CA would invoke ``pkispawn`` with the
-appropriate arguments and configuration file and then, if necessary,
-restart the Tomcat instance.
-
-This would be the procedure for *Solution 1*. ``pkispawn`` will
-create all the relevant config files, system certificates, log files
-and directories, database entries, etc.
-
-This would actually not be that difficult to code.  All we need to
-do is extend ``pkispawn`` to provide the option for a sub-CA to be
-deployed at a user defined path name.  It will automatically get all
-the profiles and config files it needs.  And ``pkispawn`` already
-knows how to contact the root CA to get a sub-CA signing CA issued.
-
-Solution 2
-^^^^^^^^^^^
-
-Provide an API for creating a sub-CA.  This could be part of the CA
-webapp's API, or the ROOT webapp.  Preferably, restart would not be
-necessary, however, if necessary, it must be able to be performed
-without manual intervention.
-
-For *Solution 2*, we would implement a REST servlet that would
-generate the new sub-CA signing certificate  based on relevant
-inputs, including the identifier of the CA/sub-CA that needs to
-issue the certificate.  This will allow nested sub-CA's (**not a
+A REST servlet will be implemented that would generate the new
+sub-CA signing certificate based on relevant inputs, including the
+user-defined identifier of the CA/sub-CA that needs to issue the
+certificate.  This will allow nested sub-CA's (**not a
 requirement**).  The servlet would also register the new sub-CA
-identifier (possibly in the CS.cfg, possibly in the security domain
-so it can be replicated), and instantiate a ``SigningUnit`` class
-for that sub-CA.  That would allow spawning without a restart.
+identifier in the CA subsystem's database (or subtree) so that it
+can be replicated, and instantiate a ``SigningUnit`` class for that
+sub-CA.  That would allow creation of the sub-CA facility without
+requiring a restart.
 
 
 HTTP interface
 ~~~~~~~~~~~~~~
-
-Solution 1
-^^^^^^^^^^
-
-The sub-CA is another webapp in the Tomcat instance in the same way
-as the KRA, CA, etc.  The sub-CAs would be reached via ``/subCA1``,
-``/subCA2``.  The mapping is user-defined (through ``pkispawn``
-options or configuration).  ``pkispawn`` would need to check for and
-reject duplicate sub-CA names and other reserved names (*ca*, *kra*,
-etc.)  Nesting is possible, though it would not necessarily be
-reflected in the directory hierarcy or HTTP paths.
-
-This would eliminate the need to create mappings from sub-CA to CA
-classes, or the need to create new interfaces that have to also be
-maintained as the CA is maintained.
-
-From the point of view of the client, there is no need to use
-special profiles that somehow select a particular sub-CA.  All they
-need to do is select the right path - which they can do because they
-know which sub-CA they want to talk to.
-
-Solution 2
-^^^^^^^^^^
 
 Communication with the CA webapp would involve optionally providing
 a new parameter to select the sub-CA to be used. This would be
@@ -224,6 +146,15 @@ parameter and direct the request accordingly.
 We may need to consider how to do things like list the certs issued
 by a particular sub-CA, or list requests for a particular sub-CA,
 etc.
+
+All profiles available available in the "host" CA subsystem would be
+available for use by the sub-CA.
+
+
+LDAP schema
+~~~~~~~~~~~
+
+Yet to be designed.
 
 
 Implementation
@@ -248,13 +179,11 @@ Cloning
 -------
 
 In a FreeIPA deployment, lightweight sub-CAs **must be replicated**.
-*Solution 1* would require invoking ``pkispawn`` in the appropriate
-manner on all replica.  How this could be accomplished needs to be
-discussed further.
+Since sub-CA configuration is stored in the database, this
+configuration will be replicated.
 
-If, as per *Solution 2*, we store the configuration of the sub-CAs
-in the database, then this configuration will be replicated.  We
-will still need to propagate the new signing certificate and keys.
+The method of propagation of signing certificates and keys to clones
+needs to be designed.
 
 
 Updates and Upgrades
@@ -296,8 +225,6 @@ External Impact
 History
 -------
 
-**ORIGINAL DESIGN DATE**: June 20, 2014
-
 .. Provide the original design date in 'Month DD, YYYY' format (e.g.
    September 5, 2013).
 
@@ -307,3 +234,96 @@ History
 
 .. Note that this section is meant for documenting the history of
    the design, not the history of changes to the wiki.
+
+**ORIGINAL DESIGN DATE**: June 20, 2014
+
+
+Rejected design: sub-CA subsystem (*Solution 1*)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Enable deployment of multiple CA webapps within a single Tomcat
+instance.  In this case, the sub-CA is treated exactly the same as
+other subsystems like the KRA, which can exist within the same
+Tomcat instance as the CA (and so have the same ports).  These
+systems share a certificate database, and some system certifcates
+(subsystem certificate and SSL server certificate), but have
+separate logging, audit logging (and audit signing certificate), and
+UI pages.  They also have separate directory subtrees (which contain
+different users, groups and ACLs).
+
+This approach has several distinct advantages:
+
+* It would be easy to implement.  Just extend ``pkispawn`` to create
+  multiple CAs with user-defined paths.  ``pkispawn`` already knows
+  how to create sub-CA's.
+
+* CAs would be referenced by different paths /ca1, /ca2 etc.
+
+* No changes would be needed to any interfaces, and no special
+  profiles would be needed.  Whatever interfaces are available for
+  the CA would be available for the sub-CAs.  The sub-CAs are just
+  full fledged CAs, configured as sub-CAs and hosted on the same
+  instance.
+
+* It is very easy to separate out the sub-CA subsystems to separate
+  instances, if need be (though this is not a requirement).
+
+Disadvantages of this approach include:
+
+* FreeIPA would need to retain a separate X.509 agent certificate
+  for each sub-CA, and appropriate mappings to ensure that the
+  correct certificate is used when contacting a particular sub-CA.
+
+
+Creating sub-CAs
+^^^^^^^^^^^^^^^^
+
+Modify ``pkispawn`` to be able to spawn sub-CAs.  Users and software
+wishing to create a new sub-CA would invoke ``pkispawn`` with the
+appropriate arguments and configuration file and then, if necessary,
+restart the Tomcat instance.  ``pkispawn`` will create all the
+relevant config files, system certificates, log files and
+directories, database entries, etc.
+
+This would actually not be that difficult to code.  All we need to
+do is extend ``pkispawn`` to provide the option for a sub-CA to be
+deployed at a user defined path name.  It will automatically get all
+the profiles and config files it needs.  And ``pkispawn`` already
+knows how to contact the root CA to get a sub-CA signing CA issued.
+
+
+HTTP interface
+^^^^^^^^^^^^^^
+
+The sub-CA is another webapp in the Tomcat instance in the same way
+as the KRA, CA, etc.  The sub-CAs would be reached via ``/subCA1``,
+``/subCA2``.  The mapping is user-defined (through ``pkispawn``
+options or configuration).  ``pkispawn`` would need to check for and
+reject duplicate sub-CA names and other reserved names (*ca*, *kra*,
+etc.)  Nesting is possible, though it would not necessarily be
+reflected in the directory hierarcy or HTTP paths.
+
+This would eliminate the need to create mappings from sub-CA to CA
+classes, or the need to create new interfaces that have to also be
+maintained as the CA is maintained.
+
+From the point of view of the client, there is no need to use
+special profiles that somehow select a particular sub-CA.  All they
+need to do is select the right path - which they can do because they
+know which sub-CA they want to talk to.
+
+
+Cloning
+^^^^^^^
+
+Cloning would require invoking ``pkispawn`` in the appropriate
+manner on all replica.
+
+
+Reasons for rejection
+^^^^^^^^^^^^^^^^^^^^^
+
+The challenge of spawning sub-CA subsystems on multiple clones is
+likely to introduce a lot of complexity and may be brittle.  The
+alternative solution of storing sub-CA configuration in the
+database, thus allowing easy replication, was preferred.
