@@ -134,6 +134,29 @@ this data was in files. At some point, we changed the servlets that
 update the security domain to use LDAP instead, and used a parameter
 in CS.cfg to determine whether the data was in LDAP or files.
 
+(*edewata*) I think all system/default profiles should remain
+file-based and all custom profiles should be LDAP-based. It will
+make a clean separation: system profiles are owned by us (Dogtag
+developers), custom profiles are owned by the admin.
+
+I think all system/default profiles should remain file-based and all
+custom profiles should be LDAP-based. It will make a clean
+separation: system profiles are owned by us (Dogtag developers),
+custom profiles are owned by the admin.
+
+The system profiles will be read-only. This way we will be able to
+update the system profiles without writing any upgrade scripts
+because the files will be updated automatically by RPM. Just one
+requirement, all server instances must be upgraded to the same
+version.
+
+If the admin wants to change a system profile, they can clone it
+into a custom profile and make the changes there. The custom
+profiles cannot have the same names as the system profiles, so
+there's won't be any conflict/confusion, and no need to support a
+"restore" command. In general we won't need to write upgrade scripts
+for custom profiles except if we change the LDAP schema.
+
 
 LDAP schema
 ^^^^^^^^^^^
@@ -145,8 +168,8 @@ configuration file will be stored as octet strings, and the
 enrollment class will be stored as a "classId" attribute.
 
 The ``classId`` (Directory String) and ``profileConfig`` (Octet
-String) attribute types and ``profile`` object class will be added
-to ``schema.ldif``::
+String) attribute types and ``certProfile`` object class will be
+added to ``schema.ldif``::
 
   dn: cn=schema
   changetype: modify
@@ -160,8 +183,8 @@ to ``schema.ldif``::
   dn: cn=schema
   changetype: modify
   add: attributeTypes
-  attributeTypes: ( profileConfig-oid
-    NAME 'profileConfig'
+  attributeTypes: ( certProfileConfig-oid
+    NAME 'certProfileConfig'
     DESC 'CMS defined attribute'
     SYNTAX 1.3.6.1.4.1.1466.115.121.1.40
     X-ORIGIN 'user defined' )
@@ -169,33 +192,39 @@ to ``schema.ldif``::
   dn: cn=schema
   changetype: modify
   add: objectClasses
-  objectClasses: ( profile-oid
-    NAME 'profile'
+  objectClasses: ( certProfile-oid
+    NAME 'certProfile'
     DESC 'CMS defined class'
     SUP top
-    STRUCTURAL MUST cn MAY ( classId $ profileConfig )
+    STRUCTURAL MUST cn MAY ( classId $ certProfileConfig )
     X-ORIGIN 'user defined' )
 
 Profiles will be stored under a new OU::
 
-  dn: ou=profiles,{rootSuffix}
+  dn: ou=certProfiles,{rootSuffix}
   objectClass: top
   objectClass: organizationalUnit
-  ou: profiles
+  ou: certProfiles
 
 LDAP-based profile records will look like::
 
-  dn: cn=<profileId>,ou=profiles,{rootSuffix}
+  dn: cn=<certProfileId>,ou=certProfiles,{rootSuffix}
   objectClass: top
-  objectClass: profile
-  cn: <profileId>
+  objectClass: certProfile
+  cn: <certProfileId>
   classId: <classId>
-  profileConfig: <octet string>
+  certProfileConfig: <octet string>
 
+The ``certProfile`` nomenclature has been used where possible to
+disambiguate certificate profiles from TPS token profiles.
 
-Please provide feedback on the LDAP schema, as I have not had much
-experience with LDAP before and would be surprised if I got things
-right on the first attempt.
+(*edewata*)  I suppose we want to have something that resembles the
+actual Profile data structure (see ``ProfileData`` Java class).
+There should be an LDAP attribute for each single-valued Java
+attribute (e.g. name, description, enabled, visible). This way the
+profile is more manageable and can be queried based on these
+attributes. For collection attributes (e.g. inputs, outputs,
+policySets) we can use child LDAP entries to represent them.
 
 
 ProfileSubsystem
@@ -270,6 +299,19 @@ changes that may be required include:
   required.
 
 Any changes to the REST API will be reflected in the Python API.
+
+(*edewata*) About the REST interface & CLI, since this will be the
+primary way to edit profiles, we might want to have more granular
+commands to modify parts of the profile. Right now with
+ca-profile-mod command you need to send the entire profile in a
+file. It would be nice to be able to specify some parameters to
+change certain attributes only, or use separate commands to manage
+the inputs/outputs.
+
+We'll also need an interface to find existing cert records that use
+a certain profile and bulk modify them to use a different profile.
+This will be useful when you create a clone to change the system
+profile.
 
 
 Access control considerations
@@ -392,6 +434,11 @@ Cloning
   behaviour with file-based profiles.  Upgrading the 10.2
   installation to 10.3 at a later time may result in conflicts.  A
   strategy for dealing with these conflicts needs to be determined.
+
+(*edewata*) I'm not sure if we should support 10.2 -> 10.3 cloning.
+When we release 10.3 the 10.2 will still be fairly new so it might
+be reasonable to require all clones to be upgraded. It will reduce
+the amount of testing requirement too.
 
 
 Updates and Upgrades
