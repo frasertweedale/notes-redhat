@@ -164,12 +164,11 @@ LDAP schema
 The existing profile registry stores the path to the profile
 configuration file and a reference to the enrollment implementation.
 For LDAP profiles, the data that would be stored in the profile
-configuration file will be stored as octet strings, and the
-enrollment class will be stored as a "classId" attribute.
+configuration file will be stored according to the following schema,
+which will be defined in ``schema.ldif``.
 
-The ``classId`` (Directory String) and ``profileConfig`` (Octet
-String) attribute types and ``certProfile`` object class will be
-added to ``schema.ldif``::
+The ``classId`` attribute is a *Directory String* that stores the
+the enrollment class identifier::
 
   dn: cn=schema
   changetype: modify
@@ -180,6 +179,24 @@ added to ``schema.ldif``::
     SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
     X-ORIGIN 'user defined' )
 
+The ``certProfileIsDefault`` attribute is a *Boolean* that indicates
+whether the profile is an *unmodified* version of a default profile.
+This attribute will be used to determine if a profile can be
+automatically updated during a Dogtag software upgrade::
+
+  dn: cn=schema
+  changetype: modify
+  add: attributeTypes
+  attributeTypes: ( certProfileIsDefault-oid
+    NAME 'certProfileIsDefault'
+    DESC 'CMS defined attribute'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.7
+    X-ORIGIN 'user defined' )
+
+The ``certProfileConfig`` attribute is an *Octet String* that stores
+the profile configuration (the same format as is currently stored in
+files)::
+
   dn: cn=schema
   changetype: modify
   add: attributeTypes
@@ -189,6 +206,9 @@ added to ``schema.ldif``::
     SYNTAX 1.3.6.1.4.1.1466.115.121.1.40
     X-ORIGIN 'user defined' )
 
+The ``certProfile`` object class defines the complete profile
+record::
+
   dn: cn=schema
   changetype: modify
   add: objectClasses
@@ -196,7 +216,10 @@ added to ``schema.ldif``::
     NAME 'certProfile'
     DESC 'CMS defined class'
     SUP top
-    STRUCTURAL MUST cn MAY ( classId $ certProfileConfig )
+    STRUCTURAL MUST cn MAY (
+        classId
+      $ certProfileIsDefault
+      $ certProfileConfig )
     X-ORIGIN 'user defined' )
 
 Profiles will be stored under a new OU::
@@ -206,13 +229,15 @@ Profiles will be stored under a new OU::
   objectClass: organizationalUnit
   ou: certProfiles
 
-LDAP-based profile records will look like::
+According to the above schema, LDAP-based profile records will look
+like::
 
   dn: cn=<certProfileId>,ou=certProfiles,{rootSuffix}
   objectClass: top
   objectClass: certProfile
   cn: <certProfileId>
   classId: <classId>
+  certProfileIsDefault: < "TRUE" / "FALSE" >
   certProfileConfig: <octet string>
 
 The ``certProfile`` nomenclature has been used where possible to
