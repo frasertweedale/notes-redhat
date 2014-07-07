@@ -19,9 +19,8 @@ LDAP-based profile storage in Dogtag.
 It is furthermore noted that according to *alee*, LDAP profile
 storage and replication has been "on the wishlist" for a while.
 
-This feature is slated for version **10.3**, or, if the `database
-upgrade framework`_ feature is ready in time, a future **10.2.x**
-release.
+This feature is slated for version **10.3**, or possibly a future
+**10.2.x** release.
 
 
 Associated Bugs and Tickets
@@ -66,6 +65,31 @@ Linux (Fedora, RHEL, Debian).
 Design
 ------
 
+Precis
+^^^^^^
+
+The essence of the design, as explained by *alee* is:
+
+1. Continue to provide the system profiles in files.  These files
+   will be parsed and stored in LDAP when an instance is created.
+
+2. All profiles for an instance should live in LDAP.  This makes it
+   simple - no need to check to see if a profile is in LDAP or files
+   or both, and which has priority etc.  Tools will be provided to
+   manage/create/delete profiles etc.
+
+3. Updates to system profile files will not affect the existing LDAP
+   profiles.  We can provide update scripts or manual instructions
+   for admins to run when they opt to do so.  This will be for
+   behavioral changes.  If IPA has changes to their profiles, they
+   can apply through the ldap update mechanisms they have in place.
+
+4. Structural changes will be done using upgrade scripts using the
+   database upgrade mechanism.  This framework is something that we
+   had planned to do already in 10.3.  We already have a model on
+   how to do this in our current upgrade framework.
+
+
 Profile scope
 ^^^^^^^^^^^^^
 
@@ -75,87 +99,6 @@ stored as attributes of a particular CA or sub-CA subsystem.  This
 will be simpler to implement and ensure that deployments prior to,
 or not using the `Top-level Tree`_ capability can take advantage of
 LDAP profile storage.
-
-
-Relationship to file-based profile storage
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-In introducing LDAP-based profiles, there exist two main options for
-how file-based profiles are treated: file-based profiles can be
-replaced by LDAP-based profiles, or file-based profiles can continue
-to be used for system/default profiles.
-
-
-LDAP-based profiles only
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-All profiles will be stored in LDAP.
-
-There is currently a 10.3 ticket to create a `database upgrade
-framework`_. Once this framework is in place, it can be used to
-perform a migration from files to LDAP, as well as modify default
-profiles when the default profile is being used.
-
-
-File-based system profiles
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Profile *creation* will store the new profile in LDAP, so that it
-will be replicated.
-
-*Modification* of a file-based profile will result in the modified
-profile being stored in LDAP, so that it will be replicated.
-Consequently, the LDAP profile storage must take precedence over
-file-based profile storage in the profile lookup process.
-
-Because LDAP and file-based versions of a single profile may now
-exist at the same time (the LDAP version being the active version),
-the behaviour of the *delete profile* operation needs to be
-clarified.  Because `System profiles`_ proposes using the shared
-system profiles (which an instance will not be able to delete), I
-propose that Dogtag prohibit the deletion of profiles that have a
-file-based version (whether or not there is also an LDAP version).
-
-If there is a use case for restoring a profile to the default
-version distributed or installed by Dogtag (where it exists), a new
-*restore profile* operation can be implemented.  This operation
-would remove the (modified) profile from the LDAP directory.  The
-file-based version will then become the active version.  Attempting
-to restore a profile that exists *only in LDAP* would be an error.
-
-(*alee*) I understand why you have profiles in both LDAP and file
-format.  However, I think this makes things complicated. My
-preference would be to have all new systems maintain their profiles
-solely in LDAP, rather than some admixture.
-
-There is a precedent for moving data that was formerly in files to
-ldap - and that was the data in the security domain. Originally,
-this data was in files. At some point, we changed the servlets that
-update the security domain to use LDAP instead, and used a parameter
-in CS.cfg to determine whether the data was in LDAP or files.
-
-(*edewata*) I think all system/default profiles should remain
-file-based and all custom profiles should be LDAP-based. It will
-make a clean separation: system profiles are owned by us (Dogtag
-developers), custom profiles are owned by the admin.
-
-I think all system/default profiles should remain file-based and all
-custom profiles should be LDAP-based. It will make a clean
-separation: system profiles are owned by us (Dogtag developers),
-custom profiles are owned by the admin.
-
-The system profiles will be read-only. This way we will be able to
-update the system profiles without writing any upgrade scripts
-because the files will be updated automatically by RPM. Just one
-requirement, all server instances must be upgraded to the same
-version.
-
-If the admin wants to change a system profile, they can clone it
-into a custom profile and make the changes there. The custom
-profiles cannot have the same names as the system profiles, so
-there's won't be any conflict/confusion, and no need to support a
-"restore" command. In general we won't need to write upgrade scripts
-for custom profiles except if we change the LDAP schema.
 
 
 LDAP schema
@@ -181,8 +124,9 @@ the enrollment class identifier::
 
 The ``certProfileIsDefault`` attribute is a *Boolean* that indicates
 whether the profile is an *unmodified* version of a default profile.
-This attribute will be used to determine if a profile can be
-automatically updated during a Dogtag software upgrade::
+This attribute may be used to aid the application of behavioral
+updates to default profiles (this will never be performed
+automatically, however)::
 
   dn: cn=schema
   changetype: modify
@@ -243,50 +187,13 @@ like::
 The ``certProfile`` nomenclature has been used where possible to
 disambiguate certificate profiles from TPS token profiles.
 
-(*edewata*)  I suppose we want to have something that resembles the
-actual Profile data structure (see ``ProfileData`` Java class).
-There should be an LDAP attribute for each single-valued Java
-attribute (e.g. name, description, enabled, visible). This way the
-profile is more manageable and can be queried based on these
-attributes. For collection attributes (e.g. inputs, outputs,
-policySets) we can use child LDAP entries to represent them.
-
 
 ProfileSubsystem
 ^^^^^^^^^^^^^^^^
 
-Changes to the ``ProfileSubsystem`` will be necessary.  Names of
-classes and methods are indicative and open to discussion.
-
-
-LDAP-based profiles only
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-The ``ProfileSubsystem`` will need to work with the database instead
-of the filesystem.  This should require no significant changes to
-its public API.
-
-
-File-based system profiles
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-Since profiles will now be stored both on the file system (in the
-case of system/default profiles) and in LDAP, it may be appropriate
-to move ``ProfileSubsystem`` to ``FileProfileSubsystem`` essentially
-unchanged, introduce ``LDAPProfileSubsystem implements
-IProfileSubsystem`` for handling the LDAP profile storage, and
-reimplementing ``ProfileSubsystem`` an an implementation of
-``IProfileSubsystem`` that dispatches or aggregates calls to a
-``FileProfileSubsystem``, ``LDAPProfileSubsystem`` or both, as
-appropriate.
-
-The ``IProfileSubsystem`` API may need some minor changes to
-facilitate this, e.g. an exception or result type indicating that
-the implementation is unable to perform some action (e.g. the
-``FileProfileSubsystem`` might prohibit deletion; see above).  If
-such changes turn out to be not strictly required to implement LDAP
-profile storage in a clean and safe manner, they shall be deferred.
+The ``ProfileSubsystem`` will be changed to use the LDAP database as
+its data store instead of the filesystem.  This should require no
+significant changes to its public API.
 
 
 Keeping profiles up to date
@@ -297,9 +204,7 @@ some mechanism to trigger the restart/reloading of the
 ``ProfileSubsystem`` on clones, without a restart.  One such
 mechanism would be to store when each clone last read in the
 profiles.  This could be checked in the maintenance thread, and
-updated/restarted as needed.  (There would be no need for the
-maintenance thread to monitor file-based profiles for changes, as
-these should only change if updated from RPMs.)
+updated/restarted as needed.
 
 (*ftweedal*) Is there any way to be notified when a certain part of
 the database has changed due to LDAP replication?  Or would this be
@@ -312,31 +217,8 @@ search or a syncrepl operation (newest DS).
 API changes
 ^^^^^^^^^^^
 
-The REST API should not require any significant changes.  Minor
-changes that may be required include:
-
-* There may be some new failure conditions (e.g., deletion of a
-  particular profile prohibited; see above).  Appropriate HTTP
-  response status codes and response bodies should be returned.
-
-* A *restore profile* operation may be required (see above).  Design
-  of this API change is deferred until it is decided that it is
-  required.
-
-Any changes to the REST API will be reflected in the Python API.
-
-(*edewata*) About the REST interface & CLI, since this will be the
-primary way to edit profiles, we might want to have more granular
-commands to modify parts of the profile. Right now with
-ca-profile-mod command you need to send the entire profile in a
-file. It would be nice to be able to specify some parameters to
-change certain attributes only, or use separate commands to manage
-the inputs/outputs.
-
-We'll also need an interface to find existing cert records that use
-a certain profile and bulk modify them to use a different profile.
-This will be useful when you create a clone to change the system
-profile.
+The REST API should not require any significant changes.  Any
+changes that are required will be reflected in the Python API.
 
 
 Access control considerations
@@ -393,8 +275,8 @@ behaviour of this command will be:
 #. Remove the temporary file.
 
 
-Other operations
-~~~~~~~~~~~~~~~~
+Other commands
+~~~~~~~~~~~~~~
 
 Other useful operations that could be implement as subcommands of
 ``pki profile`` include:
@@ -402,7 +284,24 @@ Other useful operations that could be implement as subcommands of
 * Showing a diff between a profile and the system/default version of
   that profile (if it exists).
 
-* Restoring a profile to the system/default version (if it exists).
+* Creating a copy of a profile, under a different name.  Most likely
+  for subsequent editing.
+
+
+Other considerations
+~~~~~~~~~~~~~~~~~~~~
+
+Updates to profiles via the CLI tool shall not require a restart of
+the ``pki-tomcatd`` service.
+
+Existing access controls shall remain.  That is:
+
+* Update of an existing profile - agent disables the profile; admin
+  then is allowed to update; agent reviews the profile and enables
+  it.
+
+* Adding a new profile - admin creates the profile; agent approves
+  it.
 
 
 Implementation
@@ -420,25 +319,11 @@ Major configuration options and enablement
 .. Any configuration options? Any commands to enable/disable the
    feature or turn on/off its parts?
 
-``CS.cfg`` may need to be updated to instantiate any profile
-subsystems, including new subsystems, in the correct manner and, if
-significant, the correct order.
-
-
-LDAP-based profiles only
-~~~~~~~~~~~~~~~~~~~~~~~~
-
 The ``ProfileSubsystem`` will need to be initialised such that it
 has read/write access to the database.
 
-
-File-based system profiles
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The ``LDAPProfileSubsystem`` needs to have read/write access to the
-database, and the main ``ProfileSubsystem`` needs to be able to
-dispatch requests to both the ``LDAPProfileSubsystem`` and the
-``FileProfileSubsystem`` as appropriate.
+Parts of ``CS.cfg`` and the registry will become obsolete, and can
+be removed.
 
 
 Cloning
@@ -475,51 +360,20 @@ Users should be alerted (via release notes) of this feature, and
 instructed to disable any custom mechanisms they may have in place
 to replicate profile changes between clones.
 
-Further detail on upgrade implications for the two main approaches
-follows.
-
-
-LDAP-based profiles only
-^^^^^^^^^^^^^^^^^^^^^^^^
-
 The 10.3 migration process must move all profiles into LDAP.
 File-based profiles will be left on the filesystem for the time
 being, but will no longer be used.
 
 A database attribute will record whether a profile was user-defined
-or user-modified.  Because updates to default profiles are rare,
-this design proposal does not specify a mechanism for handling them.
-Such changes should be managed on a case-by-case basis by migration
-scripts, subject to the following:
+or user-modified, for use by update scripts.
 
-* Migration scripts *must not* simply overwrite a modified version
-  of a default profile.
-
-* A migration script *should* inform the administrator performing
-  the upgrade when a default profile could not be updated due to
-  modifications.
-
-* A migration script *may* implement a mechanism for merging changes
-  to a default profile, provided the administrator is notified when
-  this mechanism is invoked and copies of the content involved in
-  the merge are made available for inspection.
-
-
-File-based system profiles
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Upgrade scripts must detect added or modified profiles and move
-these into the LDAP profile storage.
-
-Added profiles will then be removed from the CA subsystem profiles
-directory, and modified profiles will be restored to a pristine
-state, which will ensure:
-
-* updates to default profiles can always be written to the
-  corresponding file-based profiles without conflict;
-
-* a smooth changeover to a `System profiles`_ directory will be
-  possible, if this proposal is implemented.
+Because behavioral changes to default profiles are rare, this design
+proposal does not specify a mechanism for handling them.  Such
+changes should be managed on a case-by-case basis by **optional**
+update scripts (i.e., not run automatically, but at the
+administrator's discretion).  Accompanying release notes should
+explain the behavoiural changes and detail the process for applying
+the changes.
 
 
 Tests
@@ -565,3 +419,198 @@ History
 
 .. Note that this section is meant for documenting the history of
    the design, not the history of changes to the wiki.
+
+
+Rejected and deferred proposals
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Hybrid file-based and LDAP profiles (rejected)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+One of the two initially-proposed solutions was a hybrid LDAP/files
+solution, where system profiles continued to be stored on the
+filesystem, but modifications could be stored in LDAP, and all
+custom profiles would be stored in LDAP:
+
+  Profile *creation* will store the new profile in LDAP, so that it
+  will be replicated.
+
+  *Modification* of a file-based profile will result in the modified
+  profile being stored in LDAP, so that it will be replicated.
+  Consequently, the LDAP profile storage must take precedence over
+  file-based profile storage in the profile lookup process.
+
+  Because LDAP and file-based versions of a single profile may now
+  exist at the same time (the LDAP version being the active version),
+  the behaviour of the *delete profile* operation needs to be
+  clarified.  Because `System profiles`_ proposes using the shared
+  system profiles (which an instance will not be able to delete), I
+  propose that Dogtag prohibit the deletion of profiles that have a
+  file-based version (whether or not there is also an LDAP version).
+
+  If there is a use case for restoring a profile to the default
+  version distributed or installed by Dogtag (where it exists), a new
+  *restore profile* operation can be implemented.  This operation
+  would remove the (modified) profile from the LDAP directory.  The
+  file-based version will then become the active version.  Attempting
+  to restore a profile that exists *only in LDAP* would be an error.
+
+The main motivation for this proposed solution was to simplify
+application of updates to default profiles:
+
+  When upgrading to LDAP-based profiles, upgrade scripts must detect
+  added or modified profiles and move these into the LDAP profile
+  storage.  Added profiles will then be removed from the CA
+  subsystem profiles directory, and modified profiles will be
+  restored to a pristine state, which will ensure:
+
+  * updates to default profiles can always be written to the
+    corresponding file-based profiles without conflict;
+
+  * a smooth changeover to a `System profiles`_ directory will be
+    possible, if this proposal is implemented.
+
+*alee* had reservations:
+
+  I understand why you have profiles in both LDAP and file format.
+  However, I think this makes things complicated. My preference
+  would be to have all new systems maintain their profiles solely in
+  LDAP, rather than some admixture.
+
+  There is a precedent for moving data that was formerly in files to
+  ldap - and that was the data in the security domain. Originally,
+  this data was in files. At some point, we changed the servlets that
+  update the security domain to use LDAP instead, and used a parameter
+  in CS.cfg to determine whether the data was in LDAP or files.
+
+*edewata* proposed a variation where *only* custom profiles would be
+stored in LDAP, and default profiles would continue to be managed on
+the filesystem, as they currently are.
+
+  I think all system/default profiles should remain file-based and
+  all custom profiles should be LDAP-based. It will make a clean
+  separation: system profiles are owned by us (Dogtag developers),
+  custom profiles are owned by the admin.
+
+  I think all system/default profiles should remain file-based and
+  all custom profiles should be LDAP-based. It will make a clean
+  separation: system profiles are owned by us (Dogtag developers),
+  custom profiles are owned by the admin.
+
+  The system profiles will be read-only. This way we will be able to
+  update the system profiles without writing any upgrade scripts
+  because the files will be updated automatically by RPM. Just one
+  requirement, all server instances must be upgraded to the same
+  version.
+
+  If the admin wants to change a system profile, they can clone it
+  into a custom profile and make the changes there. The custom
+  profiles cannot have the same names as the system profiles, so
+  there's won't be any conflict/confusion, and no need to support a
+  "restore" command. In general we won't need to write upgrade
+  scripts for custom profiles except if we change the LDAP schema.
+
+One significant point in favour of *edewata*'s variation is that
+administrators can continue to manage profiles in the way they are
+used to, i.e. editing them directly.  The ``pki profile edit`` CLI
+is deemed to be a sufficient mitigation.
+
+Due to the rejection of automatic updates to default profiles (see
+below), which was the primary motivation for the files/LDAP hybrid
+solution, and in consideration of the increased complexity, the
+hybrid solution was rejected.
+
+
+Automatic updates to default profiles (rejected)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The original proposal for LDAP-only profiles was to automatically
+effect behavioural changes to default profiles as part of the
+upgrade process:
+
+  There is currently a 10.3 ticket to create a `database upgrade
+  framework`_. Once this framework is in place, it can be used to
+  perform a migration from files to LDAP, as well as modify default
+  profiles when the default profile is being used.
+
+This was rejected, although tools will still be provided for an
+administrator to perform the update at their discretion.  *alee*
+explains:
+
+  There is another problem, and that is that it is not clear that we
+  want updates to the default profiles to be propagated to existing
+  instances.  I have looked at the profiles and there have been only
+  a handful of changes over the last 7 years.  Those changes include
+  things like updating the default signing algorithms or the default
+  validity.  More likely than not, admins would prefer that we not
+  change the behavior of profiles in existing instances underneath
+  them.
+
+  The changes that I have found are all behavioral - and therefore
+  things that admin can opt out of -- or would prefer to do on their
+  own schedule.  There have been no structural changes.
+
+  If there are structural changes, then we need to (and can) provide
+  an upgrade script which would run with the automatic upgrade.  An
+  example of this would be a schema upgrade as we sort out how to
+  represent profiles in LDAP.
+
+
+Fine-grained LDAP profile storage (deferred)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*edewata* proposed a fine-grained storage of profile data, instead
+of simply storing the current profile data as a single bytestring
+(in the same way that all the profile data is currently stored in a
+single file):
+
+  I suppose we want to have something that resembles the actual
+  Profile data structure (see ``ProfileData`` Java class).  There
+  should be an LDAP attribute for each single-valued Java attribute
+  (e.g. name, description, enabled, visible). This way the profile
+  is more manageable and can be queried based on these attributes.
+  For collection attributes (e.g. inputs, outputs, policySets) we
+  can use child LDAP entries to represent them.
+
+  About the REST interface & CLI, since this will be the primary way
+  to edit profiles, we might want to have more granular commands to
+  modify parts of the profile. Right now with ca-profile-mod command
+  you need to send the entire profile in a file. It would be nice to
+  be able to specify some parameters to change certain attributes
+  only, or use separate commands to manage the inputs/outputs.
+
+  We'll also need an interface to find existing cert records that
+  use a certain profile and bulk modify them to use a different
+  profile.  This will be useful when you create a clone to change
+  the system profile.
+
+There are obvious benefits to this proposal but it is more work (the
+existing machinery for reading and modifying file-based profiles
+would no longer be useful for LDAP profiles), and not necessary to
+maintain the current behaviour and meet the basic goals concerning
+replication.  It is therefore deferred.
+
+
+Profile inheritance (deferred)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*edewata* proposed a mechanism whereby profiles can inherit from
+other profiles:
+
+  Basically each LDAP profile will have an optional parent. The
+  parent can be the file-based system/default profile, or another
+  LDAP profile. A sub-profile will inherit all attributes, except
+  when it's explicitly declared in the sub-profile. This mechanism
+  allows us to create just a proxy/alias, a full clone, or anything
+  in between. For example, a proxy profile might only have a few
+  attributes::
+
+    dn: cn=caAdminCert,ou=Profiles,ou=CA,{suffix}
+    objectClass: certProfile
+    cn: caAdminCert
+    parent: defaultAdminCert
+    visible: true
+
+This proposal was deemed to be out of scope with respect to current
+requirements but fundamentally compatible with this proposal, and
+was therefore deferred.
