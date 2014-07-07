@@ -358,6 +358,29 @@ Implementation
 
 .. Include any rejected design information in the History section.
 
+The implementation will be done in stages.  Additional requirements
+or changes discovered during the implementation process will be
+detailed for each stage of the implementation.  Patches will roughly
+correspond with each stage.
+
+#. Implement the LDAP schema.
+
+#. Implement script(s) for importing file-based profiles into the
+   database.
+
+#. Update ``ProfileSubsystem`` to use the LDAP database instead of
+   files.
+
+#. Implement the ``pki profile update`` CLI command.
+
+#. Implement profile change replication monitoring and refresh
+   mechanism.
+
+#. Implement upgrade scripts for initial import of file-based
+   profiles into the database (using the script(s) from earlier).
+
+#. Update documentation and guides.
+
 
 Major configuration options and enablement
 ------------------------------------------
