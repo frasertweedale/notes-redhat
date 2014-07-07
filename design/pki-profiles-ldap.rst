@@ -110,6 +110,9 @@ For LDAP profiles, the data that would be stored in the profile
 configuration file will be stored according to the following schema,
 which will be defined in ``schema.ldif``.
 
+The ``certProfile`` terminology is used where possible to
+disambiguate certificate profiles from TPS token profiles.
+
 The ``classId`` attribute is a *Directory String* that stores the
 the enrollment class identifier::
 
@@ -173,6 +176,38 @@ Profiles will be stored under a new OU::
   objectClass: organizationalUnit
   ou: certProfiles
 
+General information needed by the profile subsystem but not
+pertaining to individual profiles will also be stored in the
+database.  This will consist of one instance of the
+``certProfilesInfo`` object class, which contains a *Generalized
+Time* attribute that indicates the time at which *any* of the
+profiles were last updated::
+
+  dn: cn=schema
+  changetype: modify
+  add: attributeTypes
+  attributeTypes: ( certProfilesLastModified-oid
+    NAME 'certProfileLastModified'
+    DESC 'CMS defined attribute'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.24
+    X-ORIGIN 'user defined' )
+
+  dn: cn=schema
+  changetype: modify
+  add: objectClasses
+  objectClasses: ( certProfilesInfo-oid
+    NAME 'certProfilesInfo'
+    DESC 'CMS defined class'
+    SUP top
+    STRUCTURAL MUST cn MAY certProfilesLastModified
+    X-ORIGIN 'user defined' )
+
+  dn: cn=certProfilesInfo,{rootSuffix}
+  objectClass: top
+  objectClass: certProfilesInfo
+  cn: certProfilesInfo
+  certProfilesLastModified: < generalizedTime value, e.g. 20150502074805Z >
+
 According to the above schema, LDAP-based profile records will look
 like::
 
@@ -183,9 +218,6 @@ like::
   classId: <classId>
   certProfileIsDefault: < "TRUE" / "FALSE" >
   certProfileConfig: <octet string>
-
-The ``certProfile`` nomenclature has been used where possible to
-disambiguate certificate profiles from TPS token profiles.
 
 
 ProfileSubsystem
@@ -200,18 +232,32 @@ Keeping profiles up to date
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Currently, profiles are read at startup. This means that we need
-some mechanism to trigger the restart/reloading of the
-``ProfileSubsystem`` on clones, without a restart.  One such
-mechanism would be to store when each clone last read in the
-profiles.  This could be checked in the maintenance thread, and
-updated/restarted as needed.
+some mechanism to trigger the refreshing of the profiles (without
+restart) when changes made on other clones are replicated to the
+local database.
 
-(*ftweedal*) Is there any way to be notified when a certain part of
-the database has changed due to LDAP replication?  Or would this be
-a poll operation?
+Since profile updates are assumed to be rare, the initial
+implementation will poll the ``cn=certProfilesInfo,{rootSuffix}``
+entry and refresh the profiles when its ``certProfilesLastModified``
+value is greater than the previously-read value of this attribute.
+The maintenance thread will be responsible for this activity.  The
+polling interval will be **5 minutes** (subject to agreement).
 
-(*simo*) For detecting changes on replicas you can use a persistent
-search or a syncrepl operation (newest DS).
+The mechanism for refreshing may be as simple as restarting the
+``ProfileSubsystem``, causing it to read all the profiles from the
+database.  This will be the initial implementation.  Optimised
+implementations will be pursued if the performance is poor.
+Possible optimised approaches include:
+
+* Use `LDAP Sync replication`_ (*syncrepl*) for immediate
+  notification of changes
+
+* Read the modifyTimestamp_ attribute of individual profile entries
+  and refresh only those profiles that were modified more recently
+  than the last poll.
+
+.. _LDAP Sync replication: http://tools.ietf.org/html/rfc4533
+.. _modifyTimestamp: http://tools.ietf.org/html/rfc2252#section-5.1.2
 
 
 API changes
