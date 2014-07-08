@@ -39,6 +39,11 @@ IPA should own its certificate profile
 .. _Database upgrade framework: https://fedorahosted.org/pki/ticket/710
 .. _Lightweight sub-CAs: http://pki.fedoraproject.org/wiki/Lightweight_sub-CAs
 
+There is an RFE for `Shared CA Enrollment Profiles`_, i.e., shared
+across instances.  The design should be mindful of this RFE.
+
+.. _Shared CA Enrollment Profiles: https://fedorahosted.org/pki/ticket/1067
+
 
 Use Cases
 ---------
