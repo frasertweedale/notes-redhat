@@ -1,0 +1,56 @@
+389 Directory Server
+====================
+
+Setting up a 389 DS instance
+----------------------------
+
+As ``root`` (not via ``sudo``)::
+
+  setup-ds.pl --silent --\
+    General.FullMachineName=`hostname`\
+    General.SuiteSpotUserID=nobody\
+    General.SuiteSpotGroup=nobody\
+    slapd.ServerPort=389\
+    slapd.ServerIdentifier=pki-tomcat\
+    slapd.Suffix=dc=example,dc=com\
+    slapd.RootDN="cn=Directory Manager"\
+    slapd.RootDNPwd=4me2Test
+
+
+CLI
+---
+
+The ``openldap-clients`` packages provides programs for searching
+and interacting with 389 and other directory servers.
+
+Performing a search::
+
+  % ldapsearch -D 'cn=Directory Manager' -w 4me2Test \
+    -b o=pki-tomcat-CA ou=certProfiles
+
+Adding data::
+
+  % cat add.ldif
+  dn: cn=certProfilesInfo,o=pki-tomcat-CA
+  objectClass: top
+  objectClass: certProfilesInfo
+  cn: certProfilesInfo
+  certProfilesLastModified: 197001010000Z
+  % ldapsearch -D 'cn=Directory Manager' -w 4me2Test < add.ldif
+
+Modifying data::
+
+  % cat modify.ldif
+  dn: cn=certProfilesInfo,o=pki-tomcat-CA
+  changetype: modify
+  replace: certProfilesLastModified
+  certProfilesLastModified: 201407141733Z
+  % ldapmodify -D 'cn=Directory Manager' -w 4me2Test < modify.ldif
+
+
+Schema
+------
+
+The schema for an instance lives in
+``/etc/dirsrv/slapd-<instance>/schema/``.  User-defined schema is in
+the file ``99user.ldif``.
