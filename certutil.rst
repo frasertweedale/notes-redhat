@@ -9,3 +9,11 @@ Delete a certificate by nickname::
 Import a PKCS #12 certificate and key::
 
   pk12util -d ~/.pki/nssdb -i <p12 file>
+
+Add a trusted CA signing certificate.  ``C`` indicates that it is a
+trusted server CA for that category.  The categories are
+``ssl,email,code``.
+
+::
+
+   certutil -d ~/.pki/nssdb -A ca.p7c -n 'CA Signing Certificate' -t CT,c,
