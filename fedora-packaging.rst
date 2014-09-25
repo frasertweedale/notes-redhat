@@ -19,3 +19,14 @@ For a directory with a spec file, ``fedpkg`` knows where to find
 source tarballs and provides commands for building the software and
 compile the RPM(s) locally.  ``fedpkg local`` will build the RPM,
 and ``fedpkg install`` will install a locally-built RPM.
+
+
+copr
+----
+
+*Cool Other Package Repositories*.
+
+::
+
+  sudo yum install -y dnf-plugins-core
+  sudo dnf copr enable -y mkosek/freeipa
