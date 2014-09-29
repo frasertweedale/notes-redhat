@@ -75,8 +75,9 @@ Precis
 
 The essence of the design, as explained by *alee* is:
 
-1. Continue to provide the system profiles in files.  These files
-   will be parsed and stored in LDAP when an instance is created.
+1. Continue to distribute the system profiles in flat files.  These
+   files will be read and stored in LDAP when an instance is
+   created.
 
 2. All profiles for an instance should live in LDAP.  This makes it
    simple - no need to check to see if a profile is in LDAP or files
@@ -130,21 +131,6 @@ the enrollment class identifier::
     SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
     X-ORIGIN 'user defined' )
 
-The ``certProfileIsDefault`` attribute is a *Boolean* that indicates
-whether the profile is an *unmodified* version of a default profile.
-This attribute may be used to aid the application of behavioral
-updates to default profiles (this will never be performed
-automatically, however)::
-
-  dn: cn=schema
-  changetype: modify
-  add: attributeTypes
-  attributeTypes: ( certProfileIsDefault-oid
-    NAME 'certProfileIsDefault'
-    DESC 'CMS defined attribute'
-    SYNTAX 1.3.6.1.4.1.1466.115.121.1.7
-    X-ORIGIN 'user defined' )
-
 The ``certProfileConfig`` attribute is an *Octet String* that stores
 the profile configuration (the same format as is currently stored in
 files)::
@@ -168,60 +154,24 @@ record::
     NAME 'certProfile'
     DESC 'CMS defined class'
     SUP top
-    STRUCTURAL MUST cn MAY (
-        classId
-      $ certProfileIsDefault
-      $ certProfileConfig )
+    STRUCTURAL MUST cn MAY ( classId $ certProfileConfig )
     X-ORIGIN 'user defined' )
 
 Profiles will be stored under a new OU::
 
-  dn: ou=certProfiles,{rootSuffix}
+  dn: ou=certificateProfiles,ou=ca,{rootSuffix}
   objectClass: top
   objectClass: organizationalUnit
-  ou: certProfiles
-
-General information needed by the profile subsystem but not
-pertaining to individual profiles will also be stored in the
-database.  This will consist of one instance of the
-``certProfilesInfo`` object class, which contains a *Generalized
-Time* attribute that indicates the time at which *any* of the
-profiles were last updated::
-
-  dn: cn=schema
-  changetype: modify
-  add: attributeTypes
-  attributeTypes: ( certProfilesLastModified-oid
-    NAME 'certProfileLastModified'
-    DESC 'CMS defined attribute'
-    SYNTAX 1.3.6.1.4.1.1466.115.121.1.24
-    X-ORIGIN 'user defined' )
-
-  dn: cn=schema
-  changetype: modify
-  add: objectClasses
-  objectClasses: ( certProfilesInfo-oid
-    NAME 'certProfilesInfo'
-    DESC 'CMS defined class'
-    SUP top
-    STRUCTURAL MUST cn MAY certProfilesLastModified
-    X-ORIGIN 'user defined' )
-
-  dn: cn=certProfilesInfo,{rootSuffix}
-  objectClass: top
-  objectClass: certProfilesInfo
-  cn: certProfilesInfo
-  certProfilesLastModified: < generalizedTime value, e.g. 20150502074805Z >
+  ou: certificateProfiles
 
 According to the above schema, LDAP-based profile records will look
 like::
 
-  dn: cn=<certProfileId>,ou=certProfiles,{rootSuffix}
+  dn: cn=<certProfileId>,ou=certificateProfiles,ou=ca,{rootSuffix}
   objectClass: top
   objectClass: certProfile
   cn: <certProfileId>
   classId: <classId>
-  certProfileIsDefault: < "TRUE" / "FALSE" >
   certProfileConfig: <octet string>
 
 
@@ -241,35 +191,19 @@ some mechanism to trigger the refreshing of the profiles (without
 restart) when changes made on other clones are replicated to the
 local database.
 
-Since profile updates are assumed to be rare, the initial
-implementation will poll the ``cn=certProfilesInfo,{rootSuffix}``
-entry and refresh the profiles when its ``certProfilesLastModified``
-value is greater than the previously-read value of this attribute.
-The maintenance thread will be responsible for this activity.  The
-polling interval will be **5 minutes** (subject to agreement).
-
-The mechanism for refreshing may be as simple as restarting the
-``ProfileSubsystem``, causing it to read all the profiles from the
-database.  This will be the initial implementation.  Optimised
-implementations will be pursued if the performance is poor.
-Possible optimised approaches include:
-
-* Use `LDAP Sync replication`_ (*syncrepl*) for immediate
-  notification of changes
-
-* Read the modifyTimestamp_ attribute of individual profile entries
-  and refresh only those profiles that were modified more recently
-  than the last poll.
-
-.. _LDAP Sync replication: http://tools.ietf.org/html/rfc4533
-.. _modifyTimestamp: http://tools.ietf.org/html/rfc2252#section-5.1.2
+A *persistent LDAP search* will be executed in its own thread to
+monitor for changes that occur beneath the ``certificateProfiles``
+OU and update the ``ProfileSubsystem`` accordingly.  The entire
+implementation is contained within the ``ProfileSubsystem`` class.
+Specifically, the presistent query is executed by the ``run`` method
+of the ``Monitor`` inner class, which extends ``Thread``.
 
 
 API changes
 ^^^^^^^^^^^
 
 The REST API should not require any significant changes.  Any
-changes that are required will be reflected in the Python API.
+changes that are required should be reflected in the Python API.
 
 
 Access control considerations
@@ -300,11 +234,16 @@ editing the file and restarting Dogtag so that profile changes take
 effect.  With profiles now to be stored in LDAP, new mechanisms are
 needed to edit profiles.
 
+The ``--raw`` flag will be added to the existing CLI commands
+(``ca-profile-show``, ``ca-profile-add`` and ``ca-profile-mod``) for
+working with profiles in the "raw" format, rather than the XML
+format.
 
-Edit profile
-~~~~~~~~~~~~
 
-The ``pki profile edit <profile-id>`` command will be added.
+ca-profile-edit
+~~~~~~~~~~~~~~~
+
+The ``pki ca-profile-edit <profile-id>`` command will be added.
 With due consideration for authentication and authorisation, the
 behaviour of this command will be:
 
@@ -330,13 +269,13 @@ Other commands
 ~~~~~~~~~~~~~~
 
 Other useful operations that could be implement as subcommands of
-``pki profile`` include:
+``pki ca-profile`` include:
 
 * Showing a diff between a profile and the system/default version of
   that profile (if it exists).
 
-* Creating a copy of a profile, under a different name.  Most likely
-  for subsequent editing.
+* Creating a copy of a profile, under a different name (most likely
+  for subsequent editing.)
 
 
 Other considerations
@@ -370,19 +309,69 @@ correspond with each stage.
 
 #. Implement the LDAP schema.
 
-#. Implement script(s) for importing file-based profiles into the
-   database.
-
 #. Update ``ProfileSubsystem`` to use the LDAP database instead of
    files.
 
-#. Implement the ``pki profile update`` CLI command.
+    The ``LDAPConfigStore`` class was added.  It implements
+    ``IConfigStore`` but since none of the profile code uses the
+    ``backup`` feature, the ``commit`` method ignores this argument.
+    The method is documented to explain this, and recommends an
+    approach to implement backup should it be needed in the future.
+
+#. Implement script(s) for importing file-based profiles into the
+   database.
+
+    The import procedure is implemented as part of the
+    ``CAInstallerServer`` process.
+
+    The main issue encountered was that the ``ProfileSubsystem``,
+    after being modified to talk to the database, cannot start up
+    until the database connection is configured.  This was resolved
+    by adding support for disabling dynamic subsystems in
+    ``CS.cfg``, as well as the methods ``CMS.enableSubsystem(String
+    id)`` and ``CMS.disableSubsystem(String id)``.  The profile
+    subsystem is initially disable, but is enabled during the spawn
+    process as soon as database configuration is completed.
+
+#. Add the ``--raw`` flag to existing CLI commands for working with
+   the "raw" profile config format, and implement the
+   ``pki ca-profile-edit`` CLI command.
+
+    The ``ProfileResource`` REST API required a few new methods for
+    working with the "raw" (i.e. ConfigStore) profile format, as a
+    ``byte[]``, instead of the default XML/JSON profile transport
+    format.  The new methods are:
+
+    - ``createProfileRaw``
+    - ``modifyProfileRaw``
+    - ``retrieveProfileRaw``
+
+    The ``ProfileClient`` API works with ``Properties`` objects
+    instead of the raw ``byte[]`` objects, to make things more
+    "developer-friendly".  A caveat of this decision is that
+    ``Properties`` keys are not ordered.  Users of the
+    ``ProfileClient`` API must therefore sort keys themselves if they
+    wish to present sorted profile config properties to end users.
+
 
 #. Implement profile change replication monitoring and refresh
    mechanism.
 
+    Some methods of the ``ProfileSubsystem`` were made
+    ``synchronized`` in order to safely handle updates from the LDAP
+    persistent search thread that monitors for updates to profiles.
+
+    The LDAP persistent search implementation is entirely
+    encapsulated within ``ProfileSubsystem`` and cannot be access or
+    controlled by the user.
+
+    One LDAP connection is held at all times by the persistent search
+    thread.
+
 #. Implement upgrade scripts for initial import of file-based
    profiles into the database (using the script(s) from earlier).
+
+    This is expected to use the upcoming database upgrade framework.
 
 #. Update documentation and guides.
 
@@ -398,6 +387,11 @@ has read/write access to the database.
 
 Parts of ``CS.cfg`` and the registry will become obsolete, and can
 be removed.
+
+There remains the possibility that users will decide whether to use
+LDAP profiles or file-based profiles.  If this is allowed,
+corresponding configuration options and (most likely) ``pkispawn``
+options will need to be added.
 
 
 Cloning
@@ -586,8 +580,8 @@ the filesystem, as they currently are.
 
 One significant point in favour of *edewata*'s variation is that
 administrators can continue to manage profiles in the way they are
-used to, i.e. editing them directly.  The ``pki profile edit`` CLI
-is deemed to be a sufficient mitigation.
+used to, i.e. editing them directly.  The ``pki ca-profile-edit``
+CLI is deemed to be a sufficient mitigation.
 
 Due to the rejection of automatic updates to default profiles (see
 below), which was the primary motivation for the files/LDAP hybrid
