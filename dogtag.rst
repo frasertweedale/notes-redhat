@@ -23,3 +23,27 @@ Building
 Interesting targets:
 
 - pki-cms-classes
+- pki-cmscore-classes
+- pki-ca-classes
+- pki-tomcat-classes
+- pki-tools-classes
+
+
+CLI tools
+=========
+
+- http://pki.fedoraproject.org/wiki/CLI
+
+profile module
+--------------
+
+Common arguments:
+
+- ``-d ~/.pki/nssdb``
+- ``-c <cert-db-password>``
+- ``-n "PKI Administrator for ipa.local"``
+
+::
+
+  % pki ca profile show [--raw] <profileId>
+  % pki ca profile add <filename> [--raw]

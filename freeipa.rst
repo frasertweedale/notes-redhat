@@ -66,3 +66,36 @@ Profiles
 --------
 
 See ``freeipa-profiles.rst``.
+
+
+Interesting features
+====================
+
+Recent cool features:
+
+- OTP_ support.
+
+.. _OTP: http://www.freeipa.org/page/V4/OTP
+
+- Cross-realm trust (AD).
+
+- DNSSEC
+
+
+Upcoming and future features
+============================
+
+- FIDO_ U2F support (Yubikey NEO)
+
+.. _FIDO: http://fidoalliance.org/
+
+- Support for deployment via OpenLMI
+
+- Support for running FreeIPA in Docker containers
+
+- Ability to control which services require tickets obtained via
+  particular authentication methods (e.g. 2FA vs single factor)
+
+- Password vault
+
+- User certificates

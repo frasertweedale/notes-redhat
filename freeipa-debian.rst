@@ -6,6 +6,11 @@ FreeIPA running on Debian.
 
 FreeIPA PPA: https://launchpad.net/~freeipa/+archive/ppa
 
+On 22 August, Timo Aaltonen <tjaalton@ubuntu.com> wrote:
+
+    Fedora/RHEL/Centos etc, yes. Maybe by x-mas we'll have something
+    in Debian unstable working.
+
 
 Dogtag
 ------
