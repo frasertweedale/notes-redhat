@@ -6,11 +6,31 @@ Overview
 
 Dogtag supports operation as a sub-CA, but only as a separate
 instance.  This document proposes *lightweight sub-CAs*, where one
-more more sub-CAs subsystems can run in a single instance, alongside
-other subsystems including the parent CA.
+or more sub-CAs can reside alongside the primary CA in a single
+instance.  other subsystems including the parent CA.
 
 This feature is aimed for inclusion in Dogtag 10.3, to be included
 in Fedora 21.
+
+
+Terminology
+~~~~~~~~~~~
+
+*primary CA*
+  The existing signing capability of the CA subsystem and associated
+  keys, certificates and data.  Put another way, this is the
+  "highest-level" CA in a Dogtag instance, which may or may not be a
+  root CA.
+
+*sub-CA*
+  A signing capability and associated keys, certificates and data,
+  which will exist as a new capability of CA subsystem and which has
+  the primary CA as an authority in its certification chain.
+
+*subsystem*
+  A Dogtag instance subsystem, i.e. that which is created by
+  ``pkispawn(8)``.  When referring to subsystems within a CMS
+  instance, the term *CMS subsystem* is used.
 
 
 Associated Bugs and Tickets
@@ -67,7 +87,9 @@ complex for this use case.  Reasons include:
   communicate on those ports.
 
 Accordingly, a more lightweight solution to the sub-CA problem is
-sought.
+sought.  Ideally, the capability to create new sub-CAs would be
+exposed via the REST API, and no manual intervention would be
+necessary in order to begin using a new sub-CA.
 
 
 Operating System Platforms and Architectures
@@ -105,33 +127,188 @@ With this solution, it would be very difficult to separate a sub-CA
 out into a separate instance.  We could develop scripts to separate
 the cert records if needed, and in fact, I (*alee*) suspect we may
 need to somehow mark the cert records with the CA identifier to help
-searches (say, for all the certs issued by a sub-CA).
+searches (say, for all the certs issued by a sub-CA).  (*ftweedal*:
+this is mitigated by using a hierarchichal certificate repository.)
 
 
 Creating sub-CAs
 ~~~~~~~~~~~~~~~~
 
-Creation of sub-CAs at any time after the initial spawning of an
-instance is a requirement.
+Creation of sub-CAs at any time after the initial spawning of an CA
+instance is a requirement.  Preferably, restart would not be needed,
+however, if needed, it must be able to be performed without manual
+intervention.
 
-We will provide an API for creating a sub-CA.  This could be part of
-the CA webapp's API, or the ROOT webapp.  Preferably, restart would
-not be necessary, however, if necessary, it must be able to be
-performed without manual intervention.
+We will provide an API for creating a sub-CA, which will be part of
+the CA subsystem's web API.  See the *HTTP interface* section below.
 
-A REST servlet will be implemented that would generate the new
-sub-CA signing certificate based on relevant inputs, including the
-user-defined identifier of the CA/sub-CA that needs to issue the
-certificate.  This will allow nested sub-CA's (**not a
-requirement**).  The servlet would also register the new sub-CA
-identifier in the CA subsystem's database (or subtree) so that it
-can be replicated, and instantiate a ``SigningUnit`` class for that
-sub-CA.  That would allow creation of the sub-CA facility without
-requiring a restart.
+
+Key generation and storage
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**TODO: more detail needed here**
+
+Keys will be generated when a sub-CA is created, according to the
+user-supplied parameters.
+
+Signing certificates and keys are currently stored in the NSS
+database at ``/var/lib/pki/pki-tomcat/alias``.
+
+The Sub-CA signing certificates and keys will need to be stored
+somehow, and there will need to be a mapping from the representation
+of a sub-CA in the LDAP database to corresponding signing keys and
+certificates.
+
+Appropriate mechanisms for propagating sub-CA private key material
+to clones needs to be devised.
+
+
+Sub-CA objects and initialisation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Java, a sub-CA will be an instance of ``CertificateAuthority``
+(or in the case of substantial implementation differences between
+the primary CA and sub-CAs, a subclass thereof).
+
+The (single) ``CertificateAuthority`` in the current system is a CMS
+subsystem, and the "entry point" to signing behaviour and the
+certificate repository is via ``CMS.getSubsystem(SUBSYSTEM_CA)``.
+Therefore, new behaviour will be added to ``CertificateAuthority``
+for it to locate and initialise sub-CAs, and methods added to
+provide access to the sub-CAs (which are also instances of
+``CertificateAuthority``).
+
+**TODO: design API; examples.**
+
+
+Initialisation
+^^^^^^^^^^^^^^
+
+Sub-CA ``CertificateAuthority`` instances will need to be
+initialised such that:
+
+- its ``CertificateChain`` is correct;
+
+- its ``ISigningUnit`` can access the sub-CA signing key;
+
+- its ``CertificateRepository`` references the subsystem
+  certificateRepository DN
+
+
+Certificate repository considerations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A design decision was made as to whether to use a single, shared
+*certificate repository* for all CAs (including sub-CAs) within a CA
+subsystem, or whether each CA within a CA subsystem should have a
+distinct certificate repository.
+
+The certificate repository for a CA subsystem is located at
+``ou=certificateRepository,ou=ca,{rootSuffix}``, an object of the
+``top`` and ``repository`` object classes.  This object shall be
+referred to as the *primary repository*.  Sub-CAs will be located
+beneath the primary repository, having the object classes as the
+primary repository.  The OU of a *sub-repository* will be the
+user-chosen name of the sub-CA (possibly with some normalisation
+applied.)
+
+Although not an initial requirement, this approach accomodates
+nested sub-CAs to an arbitrary depth.
+
+Certificate records themselves have as their final path component
+``cn={serialNo}`` and the object class ``certificateRecord``, so
+various kinds of LDAP searches are easily supported, including:
+
+- all certificates, by searching in the *primary repository* DN with
+  ``SCOPE_SUB`` and filter ``(objectClass=certificateRecord)``.
+
+- only certificates issued by a particular CA or sub-CA, by
+  searching in the relevant repository's DN with ``SCOPE_ONE`` and
+  filter ``(objectClass=certificateRecord)``.
+
+
+Serial number considerations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Serial numbers used by sub-CA certificates can safely collide with
+serial numbers used by other signing certificates - parent, siblings
+or children.
+
+Each certificate repository or sub-repository will be accessed via a
+distinct ``CertificateRepository`` instance owned by the
+``CertificateAuthority`` instance representing that CA or sub-CA.
+An implication of this is that certificates issues by different CAs
+could have the same serial number.
+
+
+OCSP and CRL considerations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Need to determine whether sub-CAs use the existing OCSP responder,
+e.g. *http://domain:80/ca/ocsp*, or mount their own responder at
+some sub-resource, e.g. *http://domain:80/ca/subca1/ocsp*.
 
 
 HTTP interface
 ~~~~~~~~~~~~~~
+
+Sub-CA creating and administration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A new REST resource will be implemented providing sub-CA creation
+and administration capabilities.
+
+New sub-CA
+''''''''''
+
+Create a sub-CA, including keys and signing certificate, based on
+relevant inputs.  Aspects of the sub-CA that are not stored in the
+LDAP database must be automatically propagated to clones.  If the
+operation is successful the sub-CA will be available for immediate
+use, without having required a restart.
+
+Several parameters are needed to create they sub-CA and generate its
+keys and signing certificate.  Some or all of these would be API
+parameters (i.e., user-supplied), and those that are not would be
+fixed, or fixed with respect to user-supplied values.
+
+- Immediate parent.  For the initial implementation, with nested
+  sub-CAs (i.e., sub-CAs *within* sub-CAs) not being a requirement,
+  this may be an implied parameter, with the *primary CA* as the
+  fixed value.
+
+- Validity (start and end, or start and duration).  Aspects of this
+  parameter may be inferred or defaulted.
+
+- Subject Name
+  - User-supplied.  May be derived from a separate "friendly name"
+    argument).
+
+- Key algorithm
+  - User-supplied
+
+- Key size
+  - User-supplied
+  - Acceptable values depend on the chosen key algorithm
+
+- Basic Constraints
+  - Critical
+  - CA: true
+  - pathLenConstraint: optional; should be validated with respect to
+    the intermediary CA certificate that will sign the sub-CA
+    certificate.
+
+- Key Usage
+  - Critical
+  - Digital Signature, Non Repudiation, Certificate Sign, CRL Sign
+
+- Signing algorithm (i.e., what algorithm should the intermediary
+  use to sign the sub-CA certificate)
+  - Acceptable values depend on the *intermediary's* key algorithm
+
+
+Certificate requests
+^^^^^^^^^^^^^^^^^^^^
 
 Communication with the CA webapp would involve optionally providing
 a new parameter to select the sub-CA to be used. This would be
@@ -147,14 +324,36 @@ We may need to consider how to do things like list the certs issued
 by a particular sub-CA, or list requests for a particular sub-CA,
 etc.
 
-All profiles available available in the "host" CA subsystem would be
-available for use by the sub-CA.
+All profiles available to the *primary CA* will be available for use
+with sub-CAs.  That is: the profile store is common to the *CA
+subsystem* and shared by the primary CA and all sub-CAs.
 
 
-LDAP schema
-~~~~~~~~~~~
+ACLs
+^^^^
 
-Yet to be designed.
+The existing ACLs shall apply for reviewing/assigning/approving
+certificate requests to a sub-CA.  Future work could implement
+"sub-CA-scoped agents" if such a use case emerges.
+
+Sub-CA creation and administration will require administrator
+credentials.
+
+
+User interface
+~~~~~~~~~~~~~~
+
+New controls or widgets will need to be written for the web
+interface for:
+
+- Choosing the CA to which to direct a certificate request performed
+  via the web UI.
+
+- Indicating which CA a certificate request is for, when viewing
+  a certificate request.
+
+- Searching for certificates or certificate requests of a
+  particular CA.
 
 
 Implementation
@@ -290,6 +489,17 @@ do is extend ``pkispawn`` to provide the option for a sub-CA to be
 deployed at a user defined path name.  It will automatically get all
 the profiles and config files it needs.  And ``pkispawn`` already
 knows how to contact the root CA to get a sub-CA signing CA issued.
+
+Question (*ftweedal*):
+
+  Is it necessary to modify or provide this behaviour within
+  ``pkispawn``?  The scope of ``pkispawn`` is currently to spawn
+  Dogtag subsystem instance, however, the lightweight sub-CA design
+  mainly involves new LDAP schema for hierarchical CAs *within* an
+  instance.
+
+  My feeling is that REST API for creating and adminstering sub-CAs,
+  and corresponding CLI modules, are a more appropriate fit.
 
 
 HTTP interface
