@@ -1,5 +1,5 @@
-Dogtag sub-CA subsystems
-========================
+Lightweight sub-CAs
+===================
 
 Overview
 --------
@@ -489,17 +489,6 @@ do is extend ``pkispawn`` to provide the option for a sub-CA to be
 deployed at a user defined path name.  It will automatically get all
 the profiles and config files it needs.  And ``pkispawn`` already
 knows how to contact the root CA to get a sub-CA signing CA issued.
-
-Question (*ftweedal*):
-
-  Is it necessary to modify or provide this behaviour within
-  ``pkispawn``?  The scope of ``pkispawn`` is currently to spawn
-  Dogtag subsystem instance, however, the lightweight sub-CA design
-  mainly involves new LDAP schema for hierarchical CAs *within* an
-  instance.
-
-  My feeling is that REST API for creating and adminstering sub-CAs,
-  and corresponding CLI modules, are a more appropriate fit.
 
 
 HTTP interface
