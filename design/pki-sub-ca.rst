@@ -160,7 +160,52 @@ of a sub-CA in the LDAP database to corresponding signing keys and
 certificates.
 
 Appropriate mechanisms for propagating sub-CA private key material
-to clones needs to be devised.
+to clones needs to be devised.  Possible approaches are outlined
+below.
+
+DNSSEC implementation example
+'''''''''''''''''''''''''''''
+
+  Maybe it is worth mentioning some implementation details from DNSSEC
+  support:
+
+  - *Every replica has own HSM* with standard PKCS#11 interface.
+    - By default we install SoftHSM.
+    - In theory it can be replaced with real HSM because the
+      interface should be the same. This allows users to "easily"
+      get FIPS 140 level 4 certified crypto instead of SoftHSM if
+      they are willing to pay for it.
+
+  - Every replica has own private-public key pair stored in this HSM.
+    - Key pair is generated inside HSM.
+    - Private part will never leave local HSM.
+    - Public part is stored in LDAP so all replicas can see it.
+
+  - *All* crypto operations are done inside HSM, no keys ever leave
+    HSM in plain text.
+
+  - LDAP stores wrapped keys in this was:
+    - DNS zone keys are wrapped with DNS master key.
+    - DNS master key is wrapped with replica key.
+
+  Scenario: If replica 1 wants to use "key2" stored in LDAP by
+  replica 2:
+
+  - Replica 1 downloads wrapped master key from LDAP.
+  - Replica 1 uses local HSM to unwrap the master key using own
+    private key -> resulting master key is stored in local HSM and
+    never leaves it.
+  - Replica 1 downloads "key2" and uses master key in local HSM to
+    unwrap "key2" -> resulting "key2" is stored in local HSM and
+    never leaves it.
+
+  Naturally this forces applications to use PKCS#11 for all crypto
+  so the raw key never leaves HSM. Luckily DNSSEC software is built
+  around PKCS#11 so it was a natural choice for us.
+
+  Personally, I would say that this is the way to go.
+
+  Petr^2 Spacek
 
 
 Sub-CA objects and initialisation
