@@ -1,8 +1,17 @@
-FreeIPA security domains
-========================
+..
+  FreeIPA security domains
+
+  Copyright 2014 Red Hat, Inc.
+
+  This work is licensed under a
+  Creative Commons Attribution 4.0 International License.
+
+  You should have received a copy of the license along with this
+  work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
+
 
 Overview
---------
+========
 
 FreeIPA's usefulness and appeal as a PKI is currently limited by the
 fact that there is a single X.509 security domain.  Any certificate
@@ -38,10 +47,10 @@ certificates in those domains.
 
 
 Use Cases
----------
+=========
 
 User certificates for VPN authentication
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----------------------------------------
 
 A FreeIPA-based tool could be implemented to request short-lived
 user certificates for the purpose of VPN authentication.  It would
@@ -59,17 +68,17 @@ certificate for client certificate verification.
 
 
 Puppet
-~~~~~~
+------
 
 A `blog post`_ about using FreeIPA as an external Puppet PKI
-complain that:
+comments that:
 
   On the downside, there is the issue of security. FreeIPA out of
   the box only supports a single toplevel CA, which means that all
   your certificates (IPA host certs, puppet certs, Website certs,
-  etc.) are all in a single security domain—there’s no built-in way
-  to restrict this access to puppet. Users can’t invent certs, of
-  course, but any cert with the right hostname can be used to
+  etc.) are all in a single security domain - there's no built-in
+  way to restrict this access to puppet. Users can't invent certs,
+  of course, but any cert with the right hostname can be used to
   authenticate to puppet, because they share the same trust
   hierarchy.
 
@@ -80,10 +89,10 @@ applies not only to Puppet but in many situations.)
 
 
 Design
-------
+======
 
 Terminology
-~~~~~~~~~~~
+-----------
 
 *security domain*
   A CA or sub-CA as represented in FreeIPA, and associated metadata
@@ -99,7 +108,7 @@ Terminology
 
 
 High-level design considerations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------
 
 Nested sub-CAs
 ^^^^^^^^^^^^^^
@@ -141,13 +150,15 @@ done via a single certificate that has administrator privileges on
 the CA instance, my initial thought is to continue this system and
 control access via FreeIPA ACIs.
 
-Comments from *mkosec* (nested) and *ssorce*:
+Comments from *mkosec* (nested) and *ssorce*::
 
-  > Agent credential is used by FreeIPA web interface, all
-  > authorization is then done on python framework level. We can add
-  > more agents and then switch the used certificate, but I wonder how
-  > to use it in authorization decisions. Apache service will need to
-  > to have access to all these agents anyway.
+  Martin Kosek <mkosek@redhat.com> wrote:
+
+    Agent credential is used by FreeIPA web interface, all
+    authorization is then done on python framework level. We can add
+    more agents and then switch the used certificate, but I wonder how
+    to use it in authorization decisions. Apache service will need to
+    to have access to all these agents anyway.
 
   We really need to move to a separate service for agent access, the
   framework is supposed to not have any more power than the user
@@ -159,26 +170,26 @@ Comments from *mkosec* (nested) and *ssorce*:
   they come from the framework but assumes agent identity only after
   checking how the framework authenticated to it (via GSSAPI).
 
-  > First we need to think how fine grained authorization we want to
-  > do.
+    First we need to think how fine grained authorization we want to
+    do.
 
   We need to associate a user to an agent credential via a group, so
   that we can assign the rights via roles.
 
-  > I think we will want to be able to for example say that user Foo
-  > can generate certificates in specified subCA. I am not sure it is
-  > a good way to go, it would also make such private key distribution
-  > on IPA replicas + renewal a challenge.
+    I think we will want to be able to for example say that user Foo
+    can generate certificates in specified subCA. I am not sure it is
+    a good way to go, it would also make such private key distribution
+    on IPA replicas + renewal a challenge.
 
   I do not think we need to start with very fine grained permissions
   initially.
 
-  > Right now, we only have "Virtual Operations" concept to authorize
-  > different operations with Dogtag CA, but it does not distinguish
-  > between different CAs. We could add a new Virtual Operation for
-  > every subCA, but it looks clumsy. But the ACI-based mechanism and
-  > our permission system would still be the easiest way to go, IMHO,
-  > compared to utilizing PKI agents.
+    Right now, we only have "Virtual Operations" concept to authorize
+    different operations with Dogtag CA, but it does not distinguish
+    between different CAs. We could add a new Virtual Operation for
+    every subCA, but it looks clumsy. But the ACI-based mechanism and
+    our permission system would still be the easiest way to go, IMHO,
+    compared to utilizing PKI agents.
 
   We need to have a different agent certificate per role, and then
   in the proxy process associate the right agent certificate based
@@ -222,7 +233,7 @@ each user to only the security domains that apply to that user.
 Only those users assigned to a security domain would be able to
 request certificates from that domain.
 
-**Does this make sense, and should it be an initial requirement?**
+***Does this make sense, and should it be an initial requirement?***
 
 Users would be associated to security domains through the existing
 *User Groups* would be used for this, with the group schema being
@@ -242,7 +253,7 @@ default security domain shall be unchanged.
 PKI profiles
 ^^^^^^^^^^^^
 
-**This section requires further discussion and refinement.**
+***This section requires further discussion and refinement.***
 
 Most security domain use cases involve the generation of
 certificates for specific purposes.  Therefore, it may be useful to
@@ -252,7 +263,7 @@ requests in that security domain to a particular profile.
 
 
 Security domain parameters
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------
 
 A security domain has the following parameters:
 
@@ -272,11 +283,13 @@ A security domain has the following parameters:
 
 
 Schema
-~~~~~~
+------
+
+TODO
 
 
 Install
-~~~~~~~
+-------
 
 ``ipa-server-install`` need not initially create any sub-CAs.  The
 existing behaviour is appropriate and no additional behaviour is
@@ -294,7 +307,7 @@ server certificates if that is deemed appropriate.
 
 
 Implementation
---------------
+==============
 
 .. Any additional requirements or changes discovered during the
    implementation phase.
@@ -303,36 +316,36 @@ Implementation
 
 
 Feature Management
-------------------
+==================
 
 CLI
-~~~
+---
 
 CLI commands for creating and adminstering security domains shall be
 created, with appropriate ACIs for authorisation.
 
 
 Web UI
-~~~~~~
+------
 
-FILL ME IN.
+TODO.
 
 
 Major configuration options and enablement
-------------------------------------------
+==========================================
 
 .. Any configuration options? Any commands to enable/disable the
    feature or turn on/off its parts? 
 
 
 Replication
------------
+===========
 
 There should be no special replication considerations.
 
 
 Updates and Upgrades
---------------------
+====================
 
 As part of the upgrade process:
 
@@ -344,7 +357,7 @@ As part of the upgrade process:
 
 
 Tests
------
+=====
 
 .. Identify any tests associated with this feature including:
    - JUnit
@@ -354,28 +367,28 @@ Tests
 
 
 Dependencies
-------------
+============
 
 - Dogtag with sub-CA feature (slated for v10.3).
 
 
 Packages
---------
+========
 
 .. Provide the initial packages that finally included this feature
    (e.g. "pki-core-10.1.0-1")
 
 
 External Impact
----------------
+===============
 
 .. Impact on other development teams and components?
 
 
 History
--------
+=======
 
-**ORIGINAL DESIGN DATE**: [SEE BELOW]
+**ORIGINAL DESIGN DATE**: 2014-10-14
 
 .. Provide the original design date in 'Month DD, YYYY' format (e.g.
    September 5, 2013).
