@@ -60,6 +60,15 @@ replication agreement can replicate all subsystems.
 .. _Top-level Tree: http://pki.fedoraproject.org/wiki/Top-Level_Tree
 
 
+Support for multiple OCSP signing certificates
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Link: https://fedorahosted.org/pki/ticket/1179
+
+Ticket for adding support for multiple OCSP signing certificates.
+Each sub-CA will need its own OCSP signing certificate.
+
+
 Use cases
 ---------
 
@@ -146,8 +155,6 @@ the CA subsystem's web API.  See the *HTTP interface* section below.
 Key generation and storage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**TODO: more detail needed here**
-
 Keys will be generated when a sub-CA is created, according to the
 user-supplied parameters.
 
@@ -165,6 +172,9 @@ below.
 
 DNSSEC implementation example
 '''''''''''''''''''''''''''''
+
+Comments from *Petr^2 Spacek* about how key distribution is
+performed for the DNSSEC feature:
 
   Maybe it is worth mentioning some implementation details from DNSSEC
   support:
@@ -203,9 +213,84 @@ DNSSEC implementation example
   so the raw key never leaves HSM. Luckily DNSSEC software is built
   around PKCS#11 so it was a natural choice for us.
 
-  Personally, I would say that this is the way to go.
 
-  Petr^2 Spacek
+``CryptoManager`` based implementation
+''''''''''''''''''''''''''''''''''''''
+
+Notes about this implementation:
+
+- Key generation is done within a JSS ``CryptoToken``.
+
+- All decryption is done within a JSS ``KeyWrapper`` facility, on a
+  JSS ``CryptoToken``.
+
+- I do not see a way to retrieve a ``SymmetricKey`` from a
+  ``CryptoToken``, so the key transport key must be unwrapped each
+  time a clone uses a sub-CA for the first time.
+
+Each clone has a *unique* keypair and accompanying X.509 certificate
+for wrapping and unwrapping symmetric *key transport key* (KTK).
+The private key is stored in the NSSDB and used via
+``CryptoManager`` and ``CryptoToken``.
+
+Creating a clone will cause the private keypair to be created and a
+wrapped version of the KTK for that clone is stored in LDAP.
+
+::
+
+  KeyWrapper kw = cryptoToken.getKeyWrapper();
+
+  SymmetricKey ktk;
+  kw.initWrap(clonePublicKey, algorithmParameterSpec);
+  byte[] wrappedKTK = kw.wrap(ktk);
+  // store wrapped KTK in LDAP
+
+When a sub-CA is created, its private key is wrapped with the KTK
+and stored in LDAP:
+
+::
+
+  PrivateKey subCAPrivateKey;
+  kw.initWrap(ktk, algorithmParameterSpec);
+  byte[] wrappedCAKey = kw.wrap(subCAPrivateKey);
+  // store wrapped sub-CA key in LDAP
+
+When a clone needs to use a sub-CA signing key, if the private key
+is not present in the local crypto token, it must unwrap the KTK,
+then use the KTK to unwrap the sub-CA private key and store the
+private key in its crypto token.
+
+::
+
+  /* values retrieved from LDAP */
+  byte[] wrappedKTK;
+  byte[] wrappedCAKey;
+  PublicKey subCAPublicKey;
+
+  kw.initUnwrap(clonePrivateKey, paramSpec);
+  SymmetricKey ktk = kw.unwrapSymmetric(wrappedKTK, ktkType, -1);
+
+  kw.initUnwrap(ktk, paramSpec2);
+  PrivateKey subCAPrivateKey =
+      kw.unwrapPrivate(wrappedCAKey, caKeyType, subCAPublicKey);
+
+At this point, the sub-CA private key is stored in the clone's
+crypto token for future use.  The unwrap operation is performed at
+most once per sub-CA, per clone.
+
+
+SoftHSM implementation
+''''''''''''''''''''''
+
+Should the security of the ``CryptoManager`` implementation (above)
+prove insufficient, a SoftHSM_ implementation will be investigated
+in depth.
+
+The current OpenDNSSEC design is based around SoftHSM v2.0 (in
+development) and may be a useful study in SoftHSM use for secure key
+distribution.
+
+.. _SoftHSM: https://www.opendnssec.org/softhsm/
 
 
 Sub-CA objects and initialisation
@@ -286,18 +371,109 @@ An implication of this is that certificates issues by different CAs
 could have the same serial number.
 
 
-OCSP and CRL considerations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+CRL considerations
+~~~~~~~~~~~~~~~~~~
 
-Need to determine whether sub-CAs use the existing OCSP responder,
-e.g. *http://domain:80/ca/ocsp*, or mount their own responder at
-some sub-resource, e.g. *http://domain:80/ca/subca1/ocsp*.
+*cfu*'s comments:
+
+  For CRL's, Each CA needs to sign its own CRL or delegate to its
+  CRL issuer.  a CRL issuer is a cert  that contains the crlSign key
+  extension which is signed by the CA itself, the same CA that
+  issues the certs.  The OCSP responses have to be signed by the the
+  OCSP signer that has the ocspSigning extended key usage extension
+  which is signed by the CA itself, the same CA that issues the
+  certs asking for validation.  when handling multiple crls from
+  different ca's, iff you have one single ocsp instance, each time a
+  request comes in, you will need to make sure you sign the
+  responses with the right corresponding ocsp signing cert or the
+  validation will fail.
+
+See also ticket https://fedorahosted.org/pki/ticket/1179.
+
+
+OCSP considerations
+~~~~~~~~~~~~~~~~~~~
+
+We need to decide whether sub-CAs use the existing OCSP responder
+facility, i.e. *http://<domain>:80/ca/ocsp*, or mount their own
+responder at some sub-resource, e.g.
+*http://<domain>:80/ca/<subCA>/ocsp*.
+
+It is feasible to use a single OCSP responder (the existing one) for
+the entire instance - the primary CA as well as all sub-CAs \-
+because OCSP requests identify both the issuing authority and the
+serial number of the certificate being checked::
+
+   CertID          ::=     SEQUENCE {
+       hashAlgorithm       AlgorithmIdentifier,
+       issuerNameHash      OCTET STRING, -- Hash of issuer's DN
+       issuerKeyHash       OCTET STRING, -- Hash of issuer's public key
+       serialNumber        CertificateSerialNumber }
+
+
+Revocation check
+''''''''''''''''
+
+OCSP revocation checks take place in the ``processRequest`` method
+of the ``DefStore`` class.  This method is passed a ``CertID``,
+which contains the *authority key identifier* and the *serial
+number* of the certificate being checked, and returns a
+``SingleResponse`` object.  The current behaviour of this method is
+summarised as follows:
+
+#. The cache of *CRL Issuing Points* (CRLIPs), keyed by authority
+   key identifier, is searched.
+
+#. If no result is found, CRLIP database objects are iterated until
+   the CRLIP for the authority is found, by equality check on key
+   digest.  The CRLIP is added to the cache.
+
+#. The ``X509CRLImpl`` is retrieved from the CRLIP and searched for
+   the *serial number* of the certificate being checked.  If the
+   serial number is found in the CRL, a ``RevokedInfo`` status will
+   be returned, otherwise ``GoodInfo`` or ``UnknownInfo`` is
+   returned, according to the result of the ``isNotFoundGood()``
+   method.
+
+Given the existing implementation, minimal changes are required to
+the OCSP implementation in order to support multiple sub-CAs.  The
+main area of concern is the linear traversal of CRLIP records to
+find the CRL for the issuing authority of the certificate being
+checked.  Since this cost is only incurred on a CRLIP cache miss,
+performance for a large number of sub-CAs/CRLs should be profiled,
+and optimisation attempted only if the performance is unacceptable.
+
+
+Response signing
+''''''''''''''''
+
+OCSP ``ResponseData`` signing is performed by the ``sign`` method of
+the ``OCSPAuthority`` class.
+
+An OCSP request can contain multiple ``CertID`` objects, and these
+could potentially refer to different authorities.  Therefore, the
+first ``CertID`` in the request referring to a known CA or sub-CA
+will cause that CA's OCSP signing certificate to be used for signing
+the OCSP response.  If none of the ``CertID`` objects in the request
+refer to a known CA, the top-level CA's OCSP signing certificate
+will be used to sign the OCSP response.
+
+``CertID`` objects are included in the OCSP ``ResponseData``, so no
+changes to the ``OCSPAuthority.sign(ResponseData rd)`` method
+signature are needed to convey this information to the signing
+method.
+
+**TODO: define the procedure to determine if a CertID corresponds to
+a known CA or sub-CA.**
+
+**TODO: define the procedure for locating/loading the OCSP signing
+certificate / ``SigningUnit`` for a given CA or sub-CA.**
 
 
 HTTP interface
 ~~~~~~~~~~~~~~
 
-Sub-CA creating and administration
+Sub-CA creation and administration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A new REST resource will be implemented providing sub-CA creation
@@ -369,9 +545,19 @@ We may need to consider how to do things like list the certs issued
 by a particular sub-CA, or list requests for a particular sub-CA,
 etc.
 
-All profiles available to the *primary CA* will be available for use
-with sub-CAs.  That is: the profile store is common to the *CA
-subsystem* and shared by the primary CA and all sub-CAs.
+
+Profiles
+^^^^^^^^
+
+In the initial implementation of this feature, all profiles
+available to the *primary CA* will be available for use with
+sub-CAs.  That is: the profile store is common to the *CA subsystem*
+and shared by the primary CA and all sub-CAs.
+
+It may be desirable to have the ability to restrict sub-CAs to only
+issue certificates in a particular profile or limited set of
+profiles.  This will not be in the initial work but design detail
+and implementation can come later, as use cases are clarified.
 
 
 ACLs
@@ -517,6 +703,10 @@ Disadvantages of this approach include:
 * FreeIPA would need to retain a separate X.509 agent certificate
   for each sub-CA, and appropriate mappings to ensure that the
   correct certificate is used when contacting a particular sub-CA.
+
+* The challenge of automatically (i.e., in response to an API call)
+  spawning sub-CA subsystems on multiple clones is likely to
+  introduce a lot of complexity and may be brittle.
 
 
 Creating sub-CAs
