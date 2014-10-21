@@ -1,3 +1,18 @@
+yum
+---
+
+Add a repo::
+
+  sudo cp example.repo /etc/yum.repos.d/
+
+To erase packages machine some pattern::
+
+  yum list installed |grep GIT | cut -d ' ' -f 1 | xargs sudo yum erase -y
+
+
+Building RPMs
+-------------
+
 Nalin Dahyabhai writes;
 
   You'll want to install fedpkg (which essentially works like rhpkg,
@@ -21,7 +36,7 @@ compile the RPM(s) locally.  ``fedpkg local`` will build the RPM,
 and ``fedpkg install`` will install a locally-built RPM.
 
 
-copr
+COPR
 ----
 
 *Cool Other Package Repositories*.
