@@ -47,6 +47,15 @@ Modifying data::
   certProfilesLastModified: 201407141733Z
   % ldapmodify -D 'cn=Directory Manager' -w 4me2Test < modify.ldif
 
+Renaming an entry::
+
+  % ldapmodrdn -D 'cn=Directory Manager' -w 4me2Test \
+    -r cn=oldCn,o=pki-tomcat-CA cn=newCn
+
+Delete an entry::
+
+  % ldapdelete -D 'cn=Directory Manager' -w 4me2Test <dn>
+
 
 Schema
 ------
