@@ -1,5 +1,5 @@
-FreeIPA OpenVPN integration
-===========================
+FreeIPA VPN integration
+=======================
 
 The big ideas:
 
@@ -28,3 +28,37 @@ Notes
 -----
 
 - Cisco max key size supported is 2048
+
+
+OpenVPN
+=======
+
+https://fedoraproject.org/wiki/Openvpn#Setting_up_an_OpenVPN_server
+
+With a FreeIPA-enrolled server:
+
+- add service
+- get service cert
+- install openvpn
+- configure openvpn
+- configure service via systemctl
+- open firewall
+- make selinux happy
+
+Add the OpenVPN service::
+
+  $ kinit admin
+
+::
+
+  $ sudo yum install -y openvpn
+  $ sudo cp /usr/share/doc/openvpn/sample/sample-config-files/server.conf /etc/openvpn/
+  $ 
+
+Edit ``/etc/openvpn/server.conf`` to have following configuration::
+
+  ca /etc/ipa/ca.crt
+  cert ...from ipa-getcert
+  key ...from certmonger, I guess?
+
+
