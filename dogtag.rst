@@ -43,7 +43,12 @@ Common arguments:
 - ``-c <cert-db-password>``
 - ``-n "PKI Administrator for ipa.local"``
 
-::
+Show, add and delete profiles::
 
-  % pki ca profile show [--raw] <profileId>
+  % pki ca profile show [--raw] [--outout <filename>] <profileId>
   % pki ca profile add <filename> [--raw]
+  % pki ca profile del <profileId>
+
+Invoke an editor to edit a profile::
+
+  % pki ca profile edit <profileId>
