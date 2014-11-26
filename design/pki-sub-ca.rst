@@ -125,7 +125,16 @@ Of this use case, Dmitri wrote:
   other.  IPA would wrap this functionality and allow creation and
   establishing relations between these CAs.
 
-This use case should be considered in the design of the sub-CAs
+Nathan Kinder provided a concrete use case:
+
+  Consider Barbican in OpenStack.  Barbican is getting into
+  certificate issuance now, but it's quite likely that separate
+  tenants within a cloud do not want to trust each other.  Barbican
+  backed by IPA/Dogtag could offer PKI-as-a-service, where each
+  tenant could create their own root and then issue certificates for
+  their services/applications within their instances.
+
+These use cases should be considered in the design of the sub-CAs
 feature.
 
 
