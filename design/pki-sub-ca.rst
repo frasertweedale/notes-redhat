@@ -100,6 +100,34 @@ sought.  Ideally, the capability to create new sub-CAs would be
 exposed via the REST API, and no manual intervention would be
 necessary in order to begin using a new sub-CA.
 
+Some activities require special attention to ensure that sub-CAs
+continue to work:
+
+- Root / top-level CA chain of trust changes
+- Key rotation of the top-level CA or an intermediary
+
+
+Hosting unrelated CAs / sub-CAs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For FreeIPA 4.2 the requirement is only for sub-CAs directly
+subordinate to the top-level CA.  In future releases we want Dogtag
+to support multiple *independent* CAs.
+
+Of this use case, Dmitri wrote:
+
+  I see the architecture to be such that Dogtag would provide
+  multiple CAs from one dogtag instance.  In this single Dogtag
+  instance there will be a "main" CA of IPA.  It can be root or
+  chained.  There will be additional CAs.  These additional CAs will
+  be either independent root CAs, chained to some other CAs or
+  chained to IPA main CA. In future may be even chained to each
+  other.  IPA would wrap this functionality and allow creation and
+  establishing relations between these CAs.
+
+This use case should be considered in the design of the sub-CAs
+feature.
+
 
 Operating System Platforms and Architectures
 --------------------------------------------
