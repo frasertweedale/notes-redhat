@@ -156,7 +156,6 @@ Almost all resources could be shared, including:
   issued by sub-CA2, etc.
 - Backend DB tree.
 - Admin interface
-- CRL generation by the main CA (**need to confirm this would work**)
 - Self test framework
 - Profiles
 
@@ -180,8 +179,8 @@ We will provide an API for creating a sub-CA, which will be part of
 the CA subsystem's web API.  See the *HTTP interface* section below.
 
 
-Key generation and storage
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Key generation and replication
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Keys will be generated when a sub-CA is created, according to the
 user-supplied parameters.
@@ -195,130 +194,76 @@ of a sub-CA in the LDAP database to corresponding signing keys and
 certificates.
 
 Appropriate mechanisms for propagating sub-CA private key material
-to clones needs to be devised.  Possible approaches are outlined
-below.
-
-DNSSEC implementation example
-'''''''''''''''''''''''''''''
-
-Comments from *Petr^2 Spacek* about how key distribution is
-performed for the DNSSEC feature:
-
-  Maybe it is worth mentioning some implementation details from DNSSEC
-  support:
-
-  - *Every replica has own HSM* with standard PKCS#11 interface.
-    - By default we install SoftHSM.
-    - In theory it can be replaced with real HSM because the
-      interface should be the same. This allows users to "easily"
-      get FIPS 140 level 4 certified crypto instead of SoftHSM if
-      they are willing to pay for it.
-
-  - Every replica has own private-public key pair stored in this HSM.
-    - Key pair is generated inside HSM.
-    - Private part will never leave local HSM.
-    - Public part is stored in LDAP so all replicas can see it.
-
-  - *All* crypto operations are done inside HSM, no keys ever leave
-    HSM in plain text.
-
-  - LDAP stores wrapped keys in this was:
-    - DNS zone keys are wrapped with DNS master key.
-    - DNS master key is wrapped with replica key.
-
-  Scenario: If replica 1 wants to use "key2" stored in LDAP by
-  replica 2:
-
-  - Replica 1 downloads wrapped master key from LDAP.
-  - Replica 1 uses local HSM to unwrap the master key using own
-    private key -> resulting master key is stored in local HSM and
-    never leaves it.
-  - Replica 1 downloads "key2" and uses master key in local HSM to
-    unwrap "key2" -> resulting "key2" is stored in local HSM and
-    never leaves it.
-
-  Naturally this forces applications to use PKCS#11 for all crypto
-  so the raw key never leaves HSM. Luckily DNSSEC software is built
-  around PKCS#11 so it was a natural choice for us.
+to clones needs to be devised.  A secure, automatic key transport
+procedure is needed.  (Note: it must be ensured that wrapping keys
+are at least as cryptographically strong as the key being wrapped.)
+Consideration should also be given to allowing users to opt out of
+this behaviour and (manually) transport keys themselves, should they
+wish.
 
 
-``CryptoManager`` based implementation
-''''''''''''''''''''''''''''''''''''''
+Ade's suggestion
+''''''''''''''''
 
-Notes about this implementation:
+1. We create a new service on the CA for the distribution of subCA
+signing keys.  This service may be disabled by a configuration setting
+on the CA.  Whether it should be disabled by default is open to debate.
 
-- Key generation is done within a JSS ``CryptoToken``.
+2. SubCA detects (through ldap) that a subCA has been added.  It sends a
+request for the CA signing key, including the identifier for the subCA
+and half of a session key (wrapped with the subsystem public key).
+Recall that the subsystem key is shared between clones and is the key
+used to inter-communicate between dogtag subsystems.
 
-- All decryption is done within a JSS ``KeyWrapper`` facility, on a
-  JSS ``CryptoToken``.
+3. The service on the master CA generates the other half of a session
+key and wraps that with the subsystem public key.  It also sends back
+the subCA signing key wrapped with the complete session key.
 
-- I do not see a way to retrieve a ``SymmetricKey`` from a
-  ``CryptoToken``, so the key transport key must be unwrapped each
-  time a clone uses a sub-CA for the first time.
+There are lots of variations of the above, but they all rely on the fact
+that the master and clones share the same subsystem cert - which was
+originally transported to the clone manually via p12 file.
 
-Each clone has a *unique* keypair and accompanying X.509 certificate
-for wrapping and unwrapping symmetric *key transport key* (KTK).
-The private key is stored in the NSSDB and used via
-``CryptoManager`` and ``CryptoToken``.
+The subsystem certificate is stored in the same cert DB as the signing
+cert, so if it is compromised, most likely the CA signing cert is
+compromised too.
 
-Creating a clone will cause the private keypair to be created and a
-wrapped version of the KTK for that clone is stored in LDAP.
-
-::
-
-  KeyWrapper kw = cryptoToken.getKeyWrapper();
-
-  SymmetricKey ktk;
-  kw.initWrap(clonePublicKey, algorithmParameterSpec);
-  byte[] wrappedKTK = kw.wrap(ktk);
-  // store wrapped KTK in LDAP
-
-When a sub-CA is created, its private key is wrapped with the KTK
-and stored in LDAP:
-
-::
-
-  PrivateKey subCAPrivateKey;
-  kw.initWrap(ktk, algorithmParameterSpec);
-  byte[] wrappedCAKey = kw.wrap(subCAPrivateKey);
-  // store wrapped sub-CA key in LDAP
-
-When a clone needs to use a sub-CA signing key, if the private key
-is not present in the local crypto token, it must unwrap the KTK,
-then use the KTK to unwrap the sub-CA private key and store the
-private key in its crypto token.
-
-::
-
-  /* values retrieved from LDAP */
-  byte[] wrappedKTK;
-  byte[] wrappedCAKey;
-  PublicKey subCAPublicKey;
-
-  kw.initUnwrap(clonePrivateKey, paramSpec);
-  SymmetricKey ktk = kw.unwrapSymmetric(wrappedKTK, ktkType, -1);
-
-  kw.initUnwrap(ktk, paramSpec2);
-  PrivateKey subCAPrivateKey =
-      kw.unwrapPrivate(wrappedCAKey, caKeyType, subCAPublicKey);
-
-At this point, the sub-CA private key is stored in the clone's
-crypto token for future use.  The unwrap operation is performed at
-most once per sub-CA, per clone.
-
-
-SoftHSM implementation
+Christina's suggestion
 ''''''''''''''''''''''
 
-Should the security of the ``CryptoManager`` implementation (above)
-prove insufficient, a SoftHSM_ implementation will be investigated
-in depth.
+(A refinement of the above proposal.)
 
-The current OpenDNSSEC design is based around SoftHSM v2.0 (in
-development) and may be a useful study in SoftHSM use for secure key
-distribution.
+* A subCA is created on CA0
 
-.. _SoftHSM: https://www.opendnssec.org/softhsm/
+* CA1 and CA2 realized it, each sends CA0 a "get new subCA signing
+  cert/keys" request, maybe along with each of their transport cert.
+
+* CA0 (after ssl auth) do the "agent" authz check
+
+* once auth/authz passed, CA0 generates a session key, use it to
+  wrap its priv key, and wrap the session key with the corresponding
+  transport cert in the request , Send them along with CA0's signing
+  cert back to the caller in response. (see additional layers of
+  security measurement below)
+
+* CA1 and CA2 each receives its respective wrapped session key and
+  the wrapped CA signing key and the CA cert, do the unwrapping onto
+  the token, etc.
+
+We also want to make sure the transport certs passed in by the
+caller are valid ones.
+
+One way to do it is to have Security Domain come into play.  The SD
+is supposed to have knowledge of all the subsystems within its
+domain.  Could we add something in there to track which ones are
+clones of one another?  Could we maybe also "register" each clone's
+transport certs there as well.  If we have such info at hand from
+the SD, then the "master of the moment" could look up and verify the
+cert.
+
+Also, one extra step that can be taken is to generate a nonce
+encrypted with the transport cert and receive it back encrypted with
+the "master of the moment"s own transport cert to ensure that the
+caller indeed has the transport cert/keys.
 
 
 Sub-CA objects and initialisation
@@ -365,10 +310,10 @@ The certificate repository for a CA subsystem is located at
 ``ou=certificateRepository,ou=ca,{rootSuffix}``, an object of the
 ``top`` and ``repository`` object classes.  This object shall be
 referred to as the *primary repository*.  Sub-CAs will be located
-beneath the primary repository, having the object classes as the
-primary repository.  The OU of a *sub-repository* will be the
-user-chosen name of the sub-CA (possibly with some normalisation
-applied.)
+beneath the primary repository, having the same object classes as
+the primary repository.  The OU of a *sub-repository* will be the
+sub-CA ID.  Therefore, the DN for a sub-CA's certificate repository
+is ``ou={subCAId},ou=certificateRepository,ou=ca,{rootSuffix}``.
 
 Although not an initial requirement, this approach accomodates
 nested sub-CAs to an arbitrary depth.
@@ -402,21 +347,62 @@ could have the same serial number.
 CRL considerations
 ~~~~~~~~~~~~~~~~~~
 
-*cfu*'s comments:
+The ``MasterCRL`` CRL is (by default) signed by the top-level CA.
+CRLs can be signed either by the issuing CA, or by a certificate
+issued by the issuing CA that contains the ``crlSign`` key usage.
 
-  For CRL's, Each CA needs to sign its own CRL or delegate to its
-  CRL issuer.  a CRL issuer is a cert  that contains the crlSign key
-  extension which is signed by the CA itself, the same CA that
-  issues the certs.  The OCSP responses have to be signed by the the
-  OCSP signer that has the ocspSigning extended key usage extension
-  which is signed by the CA itself, the same CA that issues the
-  certs asking for validation.  when handling multiple crls from
-  different ca's, iff you have one single ocsp instance, each time a
-  request comes in, you will need to make sure you sign the
-  responses with the right corresponding ocsp signing cert or the
-  validation will fail.
+A CRL may include certificates issued by an entity other than the
+CRL issuer, in which case it is an *indirect CRL*.  Conforming
+applications are not required to support indirect CRLs, and Dogtag
+does not yet support the CRL and CRL entry extensions needed for
+indirect CRLs (see https://fedorahosted.org/pki/ticket/636), so each
+sub-CA will have its own *CRL Distribution Point* (referred to in
+the codebase and database schema as a *CRL Issuing Point* or
+*CRLIP*).
 
-See also ticket https://fedorahosted.org/pki/ticket/1179.
+
+Schema
+^^^^^^
+
+CRLs will be located at
+``cn=MasterCRL,ou=crlIssuingPoints,ou=ca,{rootSuffix}``.
+
+The ``MasterCRL`` issuing point for the top-level CA is located at
+``cn=MasterCRL,ou=crlIssuingPoints,ou=ca,{rootSuffix}``.  Sub-CA
+CRLIPs will be located beneath the top-level CRLIP OU, in an OU
+named for the sub-CA ID.  Therefore, the DN for a sub-CA's
+certificate repository will be
+``ou={subCAId},ou=certificateRepository,ou=ca,{rootSuffix}``.
+
+
+Publishing
+^^^^^^^^^^
+
+The ``CertificateAuthority.initCRL()`` method is responsible for
+initialising a CA's CRLIPs.  Modifications to this method are
+necessary.
+
+- If one ``CertificateAuthority`` object is instantiated for each CA
+  or sub-CA in the instance, the method will need to be updated to
+  handle reading a *sub-CAs* CRLIP configuration from the database,
+  or to infer it from known sub-CA details.  For the top-level CA,
+  the existing behaviour will be retained.
+
+- If a single ``CertificateAuthority`` instance is used for all CAs
+  in an instance, the above process will be repeated for each CA.
+  The existing ``mMasterCRLIssuePoint`` reference will be changed to
+  a mappings of each CA to its master/full CRLIP and its
+  ``ICRLPublisher``, and a number of methods signatures would have
+  to be updated with a parameter for the caller to nominate the CA
+  whose CRL(s) to work with.
+
+**TODO: more detail**
+
+
+REST API
+^^^^^^^^
+
+**TODO**
 
 
 OCSP considerations
@@ -440,7 +426,7 @@ serial number of the certificate being checked::
 
 
 Revocation check
-''''''''''''''''
+^^^^^^^^^^^^^^^^
 
 OCSP revocation checks take place in the ``processRequest`` method
 of the ``DefStore`` class.  This method is passed a ``CertID``,
@@ -473,7 +459,7 @@ and optimisation attempted only if the performance is unacceptable.
 
 
 Response signing
-''''''''''''''''
+^^^^^^^^^^^^^^^^
 
 OCSP ``ResponseData`` signing is performed by the ``sign`` method of
 the ``OCSPAuthority`` class.
@@ -636,12 +622,9 @@ FILL ME IN
 Cloning
 -------
 
-In a FreeIPA deployment, lightweight sub-CAs **must be replicated**.
-Since sub-CA configuration is stored in the database, this
-configuration will be replicated.
-
-The method of propagation of signing certificates and keys to clones
-needs to be designed.
+When a clone is spawned, all sub-CA private signing keys (including
+CRL/OCSP signing keys) must be made available to the clone, in
+addition to the top-level CA signing key.
 
 
 Updates and Upgrades
@@ -789,3 +772,150 @@ The challenge of spawning sub-CA subsystems on multiple clones is
 likely to introduce a lot of complexity and may be brittle.  The
 alternative solution of storing sub-CA configuration in the
 database, thus allowing easy replication, was preferred.
+
+
+Rejected design: sub-CA key transport via LDAP
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Initial design efforts focused on mechanisms to transport sub-CA
+private keys to replicas by wrapping them and replicating them
+through the LDAP database.
+
+Design details
+^^^^^^^^^^^^^^
+
+DNSSEC implementation example
+'''''''''''''''''''''''''''''
+
+Comments from *Petr^2 Spacek* about how key distribution is
+performed for the DNSSEC feature:
+
+  Maybe it is worth mentioning some implementation details from DNSSEC
+  support:
+
+  - *Every replica has own HSM* with standard PKCS#11 interface.
+    - By default we install SoftHSM.
+    - In theory it can be replaced with real HSM because the
+      interface should be the same. This allows users to "easily"
+      get FIPS 140 level 4 certified crypto instead of SoftHSM if
+      they are willing to pay for it.
+
+  - Every replica has own private-public key pair stored in this HSM.
+    - Key pair is generated inside HSM.
+    - Private part will never leave local HSM.
+    - Public part is stored in LDAP so all replicas can see it.
+
+  - *All* crypto operations are done inside HSM, no keys ever leave
+    HSM in plain text.
+
+  - LDAP stores wrapped keys in this was:
+    - DNS zone keys are wrapped with DNS master key.
+    - DNS master key is wrapped with replica key.
+
+  Scenario: If replica 1 wants to use "key2" stored in LDAP by
+  replica 2:
+
+  - Replica 1 downloads wrapped master key from LDAP.
+  - Replica 1 uses local HSM to unwrap the master key using own
+    private key -> resulting master key is stored in local HSM and
+    never leaves it.
+  - Replica 1 downloads "key2" and uses master key in local HSM to
+    unwrap "key2" -> resulting "key2" is stored in local HSM and
+    never leaves it.
+
+  Naturally this forces applications to use PKCS#11 for all crypto
+  so the raw key never leaves HSM. Luckily DNSSEC software is built
+  around PKCS#11 so it was a natural choice for us.
+
+
+``CryptoManager`` based implementation
+''''''''''''''''''''''''''''''''''''''
+
+Notes about this implementation:
+
+- Key generation is done within a JSS ``CryptoToken``.
+
+- All decryption is done within a JSS ``KeyWrapper`` facility, on a
+  JSS ``CryptoToken``.
+
+- I do not see a way to retrieve a ``SymmetricKey`` from a
+  ``CryptoToken``, so the key transport key must be unwrapped each
+  time a clone uses a sub-CA for the first time.
+
+Each clone has a *unique* keypair and accompanying X.509 certificate
+for wrapping and unwrapping symmetric *key transport key* (KTK).
+The private key is stored in the NSSDB and used via
+``CryptoManager`` and ``CryptoToken``.
+
+Creating a clone will cause the private keypair to be created and a
+wrapped version of the KTK for that clone is stored in LDAP.
+
+::
+
+  KeyWrapper kw = cryptoToken.getKeyWrapper();
+
+  SymmetricKey ktk;
+  kw.initWrap(clonePublicKey, algorithmParameterSpec);
+  byte[] wrappedKTK = kw.wrap(ktk);
+  // store wrapped KTK in LDAP
+
+When a sub-CA is created, its private key is wrapped with the KTK
+and stored in LDAP:
+
+::
+
+  PrivateKey subCAPrivateKey;
+  kw.initWrap(ktk, algorithmParameterSpec);
+  byte[] wrappedCAKey = kw.wrap(subCAPrivateKey);
+  // store wrapped sub-CA key in LDAP
+
+When a clone needs to use a sub-CA signing key, if the private key
+is not present in the local crypto token, it must unwrap the KTK,
+then use the KTK to unwrap the sub-CA private key and store the
+private key in its crypto token.
+
+::
+
+  /* values retrieved from LDAP */
+  byte[] wrappedKTK;
+  byte[] wrappedCAKey;
+  PublicKey subCAPublicKey;
+
+  kw.initUnwrap(clonePrivateKey, paramSpec);
+  SymmetricKey ktk = kw.unwrapSymmetric(wrappedKTK, ktkType, -1);
+
+  kw.initUnwrap(ktk, paramSpec2);
+  PrivateKey subCAPrivateKey =
+      kw.unwrapPrivate(wrappedCAKey, caKeyType, subCAPublicKey);
+
+At this point, the sub-CA private key is stored in the clone's
+crypto token for future use.  The unwrap operation is performed at
+most once per sub-CA, per clone.
+
+
+SoftHSM implementation
+''''''''''''''''''''''
+
+Should the security of the ``CryptoManager`` implementation (above)
+prove insufficient, a SoftHSM_ implementation will be investigated
+in depth.
+
+The current OpenDNSSEC design is based around SoftHSM v2.0 (in
+development) and may be a useful study in SoftHSM use for secure key
+distribution.
+
+.. _SoftHSM: https://www.opendnssec.org/softhsm/
+
+
+Reasons for rejection
+^^^^^^^^^^^^^^^^^^^^^
+
+Storage of private signing keys in LDAP was deemed to be too great a
+security risk, regardless of the wrapping used.  Should access to
+the database be gained, offline attacks can be mounted to recover
+private keys or intermediate wrapping keys.
+
+It was further argued that in light of these risks, Dogtag's
+reputation as a secure system would be undermined by the presence of
+a signing key transport feature that worked in this way, even if was
+optional and disabled by default.
