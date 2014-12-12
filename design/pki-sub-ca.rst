@@ -307,8 +307,39 @@ initialised such that:
   certificateRepository DN
 
 
-Certificate repository considerations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Database schema
+~~~~~~~~~~~~~~~
+
+Certificate requests
+^^^^^^^^^^^^^^^^^^^^
+
+Certificate requests are currently stored in a single "queue" at
+``cn=<N>,ou=ca,ou=requests,{rootSuffix}``.  Options for managing
+requests to sub-CAs follow.
+
+Shared queue
+''''''''''''
+
+Continue using a single queue and augment the request object such
+that it specifies the target CA.
+
+Separate queues
+'''''''''''''''
+
+Implement hierarchical requests queues, thus requiring no changes to
+the request object schema.  The ``RequestSubsystem`` seems to have
+some provision for supporting multiple queues with different names.
+It appears that a small amount of work is required in the
+``RequestSubsystem``, ``ARequestQueue`` and ``RequestQueue`` classes
+to support separate queues.
+
+Sub-CA requests should be contained in an OU underneath the primary
+CA so that searches for pending requests can (optionally) include
+all sub-CAs.
+
+
+Certificate repository
+^^^^^^^^^^^^^^^^^^^^^^
 
 A design decision was made as to whether to use a single, shared
 *certificate repository* for all CAs (including sub-CAs) within a CA
@@ -340,7 +371,7 @@ various kinds of LDAP searches are easily supported, including:
 
 
 Serial number considerations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+''''''''''''''''''''''''''''
 
 Serial numbers used by sub-CA certificates can safely collide with
 serial numbers used by other signing certificates - parent, siblings
@@ -612,6 +643,18 @@ interface for:
 
 Implementation
 --------------
+
+- Update ``SigningUnit`` and have its users supply the nickname
+  configuration, so that there can be multiple ``SigningUnit``
+  instances using different keys.
+
+- Enhance ``CertificateAuthority`` to allow instantiation/retrieval
+  of sub-CA  ``CertificateAuthority`` instances.
+
+- Update ``CAEnrollProfile.getAuthority`` to retrieve an indicated
+  sub-CA (via new capabilities of ``CertificateAuthority`` class).
+
+- Store target CA in request metaInfo
 
 .. Any additional requirements or changes discovered during the
    implementation phase.
