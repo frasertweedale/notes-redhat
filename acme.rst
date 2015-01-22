@@ -57,3 +57,40 @@ Added ``ServerName`` directive to
 
 During this process, was prompted about whether to redirect from
 http to https.  Selected yes (why wouldn't you?!)
+
+
+Certificate details
+-------------------
+
+node-acme dished up the following certificate::
+
+  -----BEGIN CERTIFICATE-----
+  MIIC/DCCAeSgAwIBAgIEkBc+5jANBgkqhkiG9w0BAQUFADAPMQ0wCwYDVQQKEwRB
+  Q01FMB4XDTE1MDEyMjA3NDUwN1oXDTE2MDEyMjA3NDUwN1owHzEdMBsGA1UEAxMU
+  ZGViaWFuNzgtMC5pcGEubG9jYWwwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+  AoIBAQC0+xGa6V4zogaxMn41HRYsQWw5ecI1u2JNFs9+yhERAl8bREKcdJoL0JrY
+  W5kJqqFYXjM3AzbKqILKDR2N/z7bgejtcmnK6fPZs8OsEeIzFnIHjBJKHpiw7Mt1
+  O7AJPtg0zJ7jZJejRCROCUXTqqxerYFptJBYvbU6M4MRMZKAxlW5mZAjCMhZlGu3
+  Z+BCHrtgHzFyndIsPAeJuUo7qCuzcWR/i2yRLiPZ0FLTnjmlYjdrzmfydZo8WGYy
+  8bi4o9Ie53OXrtxZUkSuCzYPu2cAfMvuE6foeo0ZphT75nyjS/LzaXeKnmhzv+RM
+  BKQwCMUmT5SjbC511qt6cxzcmHQ9AgMBAAGjUDBOMAkGA1UdEwQCMAAwCwYDVR0P
+  BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMBMB8GA1UdEQQYMBaCFGRlYmlhbjc4
+  LTAuaXBhLmxvY2FsMA0GCSqGSIb3DQEBBQUAA4IBAQBt0DDMsfaF3BaaG2mWp7Fk
+  Ot01M/DJVzUlAY9Ds7+5SBcGBcP3OajqrQEIgPZ41zNlAXiaKvFQuOtplxHXrPgk
+  nwwFzQY3k0e100Lt7RNmgHsYTrAnmF+pIKICbOUDTyFRFxsOPn5LKca+IczPc+9e
+  HBKTDkMxSaiYtcVra+ESo4zpcODQQ4MwmrbnEttxv7ah6h/FsPh38oAN++WgNNOU
+  GDAgDwghUwN5c3chEyqbcJrAMZ/oc7zfF+nnHjmygGxYEM+VVQ+qMEd9WEXmIGJe
+  OLn47hYwfim0GBSt2biNY9nyrzCofhdoo9AZTdol2PMOcb3WHi5PH/N1b1OtxCn8
+  -----END CERTIFICATE-----
+
+Notes:
+
+- Serial number is (or can be) negative; violation of RFC 5280.
+  https://github.com/letsencrypt/node-acme/issues/11
+
+- No authorityKeyIdentifier extension, which is a violation of RFC
+  5280.
+  https://github.com/letsencrypt/node-acme/issues/12
+
+- No subjectKeyIdentifier extension, which SHOULD be included.
+  https://github.com/letsencrypt/node-acme/issues/13
