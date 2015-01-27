@@ -88,6 +88,20 @@ applies not only to Puppet but in many situations.)
 .. _blog post: http://jcape.name/2012/01/16/using-the-freeipa-pki-with-puppet/
 
 
+Default security domains for host, service and user certificates
+----------------------------------------------------------------
+
+FreeIPA user Baptiste Agasse requested having separate domains for
+host and user certificates by default:
+
+  Hosts in FreeIPA can have an X.509 certificate for the host
+  principal; you don't have to create any service on the host to
+  request this certificate. If the security domains land in FreeIPA,
+  it would be nice to have some default security domains, like one
+  that sign hosts certificates by default, and why not another that
+  sign user certificates by default.
+
+
 Design
 ======
 
