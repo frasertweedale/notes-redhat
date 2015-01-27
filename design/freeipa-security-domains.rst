@@ -338,11 +338,24 @@ CLI
 CLI commands for creating and adminstering security domains shall be
 created, with appropriate ACIs for authorisation.
 
+CLI commands that retrieve certificates must be enhanced, or
+complementary commands provided, to retrieve certificate *chains*
+that include intermedite CA certificate.
+
 
 Web UI
 ------
 
-TODO.
+The web UI must be enhanced to allow the user to indicate which
+security domain a certificate request should be directed to, and to
+indicate the security domain of any existing certificate (ideally
+the entire certification path).
+
+It will be necessary to support multiple certificates per-principal,
+in different security domains.
+
+The web UI for retrieving certificates must be extended to include
+the ability to download a chained certificate.
 
 
 Major configuration options and enablement
@@ -355,7 +368,7 @@ Major configuration options and enablement
 Replication
 ===========
 
-There should be no special replication considerations.
+There should be no particular replication considerations.
 
 
 Updates and Upgrades
@@ -363,11 +376,10 @@ Updates and Upgrades
 
 As part of the upgrade process:
 
-- The schema will have to be updated.
+- The schema will be updated.
 
-- Essential security domains (if there ends up being any - there
-  might not) will be have to be created, and any essential
-  certificates will have to be issued.
+- Any essential/default security domains will be created, and
+  relevant certificates issued.
 
 
 Tests
