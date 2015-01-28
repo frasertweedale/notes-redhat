@@ -414,6 +414,10 @@ named for the sub-CA ID.  Therefore, the DN for a sub-CA's
 certificate repository will be
 ``ou={subCAId},ou=certificateRepository,ou=ca,{rootSuffix}``.
 
+Initially, only the one CRLIP per sub-CA will be maintained.
+Support for multiple sub-CA CRLIPs is YAGNI'd unless a clear use
+case emerges.
+
 
 Publishing
 ^^^^^^^^^^
