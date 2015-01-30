@@ -36,7 +36,7 @@ Adding data::
   objectClass: certProfilesInfo
   cn: certProfilesInfo
   certProfilesLastModified: 197001010000Z
-  % ldapsearch -D 'cn=Directory Manager' -w 4me2Test < add.ldif
+  % ldapadd -D 'cn=Directory Manager' -w 4me2Test < add.ldif
 
 Modifying data::
 
