@@ -57,7 +57,10 @@ Invoke an editor to edit a profile::
 Config
 ======
 
-NSS directory: ``/var/lib/pki/<instance>/alias/``
+NSS DB: ``/var/lib/pki/<instance>/conf/alias/``
+
+NSS DB passphrase is stored in
+``/var/lib/pki/<instance>/conf/password.conf``, field ``internal``.
 
 
 Walkthroughs
