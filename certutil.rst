@@ -17,3 +17,7 @@ trusted server CA for that category.  The categories are
 ::
 
    certutil -d ~/.pki/nssdb -A ca.p7c -n 'CA Signing Certificate' -t CT,c,
+
+Modify certificate trust::
+
+  certutil -d . -M -t "CTu,Cu,Cu" -n <nickname>
