@@ -52,3 +52,19 @@ Show, add and delete profiles::
 Invoke an editor to edit a profile::
 
   % pki ca profile edit <profileId>
+
+
+Config
+======
+
+NSS directory: ``/var/lib/pki/<instance>/alias/``
+
+
+Walkthroughs
+============
+
+Enrolling a subordinate signing certificate
+-------------------------------------------
+
+1. Create a PKCS #10 CSR
+2. Enrol using ``caCrossSignedCACert`` profile
