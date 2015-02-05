@@ -17,6 +17,10 @@ Running the node-acme server::
   npm install node-acme
   node server.js
 
+Make sure that the firewall is down::
+
+  sudo firewall-cmd --add-port=8888/tcp
+
 
 lets-encrypt-preview
 ====================
@@ -25,6 +29,7 @@ First attempt; default Debian 7.8 apache config.
 
 Running in virtual environment::
 
+  # must run in root of repository
   sudo $(which letsencrypt) \
     --domains debian78-0.ipa.local \
     --server acme.ipa.local
@@ -68,6 +73,46 @@ During this process, was prompted about whether to redirect from
 http to https.  Selected yes (why wouldn't you?!)
 
 
+Resultant Apache config
+-----------------------
+
+Original vhost config in ``/etc/apache2/sites-available/`` with symlink
+in ``/etc/apache2/sites-enabled/``::
+
+  <VirtualHost *:80>
+          ServerName devconf.ipa.local
+          DocumentRoot /var/www
+  </VirtualHost>
+
+
+If permanent redirect to secured site was selected, insecure vhost
+has following added to config::
+
+  RewriteEngine On
+  RewriteRule ^.*$ https://%{SERVER_NAME}%{REQUEST_URI} [L,R=permanent]
+
+New vhost file appears::
+
+  <IfModule mod_ssl.c>
+  <VirtualHost *:443>
+          ServerName devconf.ipa.local
+          DocumentRoot /var/www
+  SSLCertificateFile /etc/apache2/certs/cert-letsencrypt_1.pem
+  SSLCertificateKeyFile /etc/apache2/ssl/key-letsencrypt_9.pem
+  Include /etc/letsencrypt/options-ssl.conf
+  </VirtualHost>
+  </IfModule>
+
+Notes about contents of ``/etc/letsencrypt/options-ssl.conf``:
+
+- ``SSLProtocol all -SSLv3 -SSLv3``
+- Very long ``SSLCipherSuite``
+- ``SSLHonorCipherOrder on``
+- ``SSLCompression on`` (mitigate CRIME attack)
+- ``ServerSignature Off``
+- ``AcceptPathInfo Off``
+
+
 Certificate details
 -------------------
 
@@ -103,3 +148,40 @@ Notes:
 
 - No subjectKeyIdentifier extension, which SHOULD be included.
   https://github.com/letsencrypt/node-acme/issues/13
+
+
+Future
+======
+
+- Additional certificate features
+
+  - additional alternative names
+
+- Additional validation mechanisms?
+
+  -  DNSSEC?
+
+- Support more web servers
+
+- Support other applications
+
+  - Email validation, certificate request, email client
+    configuration for S/MIME?
+
+- letsencrypt client can offer to configure additional HTTP security
+  mechanisms
+
+  - HTTP Strict Transport Security
+
+  - HTTP Public Key Pinning
+    - https://developer.mozilla.org/en-US/docs/Web/Security/Public_Key_Pinning
+    - TOFU (trust on first use)
+
+  - Ensure Secure cookies
+
+- Disable HTTP entirely (not just redirect)
+
+- Configure new vhost from nothing (currently requires existing
+  vhost)
+
+  - DNS must already be in place
