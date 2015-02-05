@@ -1,5 +1,19 @@
+Existing DV methods
+===================
+
+- email to postmaster address
+
+- something involving WHOIS
+
+- provision some resource on web server
+
+- povision DNS record
+
+
 ACME and Let's Encrypt
 ======================
+
+https://tools.ietf.org/html/draft-barnes-acme-01
 
 
 Non-trivial use cases
@@ -25,11 +39,22 @@ Make sure that the firewall is down::
 lets-encrypt-preview
 ====================
 
-First attempt; default Debian 7.8 apache config.
+Assumptions / preconditions
+---------------------------
+
+- TLS is enabled on web server (for DVSNI)
+
+- ``letsencrypt`` must be run in repository root (some hardcoded
+  relative paths to EULA, etc).
+
+- ``letsencrypt`` must be run as superuser
+
+
+Certificate request
+-------------------
 
 Running in virtual environment::
 
-  # must run in root of repository
   sudo $(which letsencrypt) \
     --domains debian78-0.ipa.local \
     --server acme.ipa.local
@@ -150,38 +175,109 @@ Notes:
   https://github.com/letsencrypt/node-acme/issues/13
 
 
+Strengths
+=========
+
+- Simpler to deploy TLS
+
+  - Fewer manual steps means less chance of making mistake
+
+- Faster to deploy TLS
+
+- Avoids weaknesses in some existing DV procedures, e.g. email to
+  domain postmaster address.
+
+- Reuses existing formats / protocols where possible (JWK/JWS, PKCS
+  #10).
+
+
+Limitations
+===========
+
+- DV only
+
+- It's still X.509, with same weaknesses / trust issues
+
+- Attacker who controls DNS can obtain valid certificate
+  from another CA and impersonate server
+
+- Automation of DV means a compromised webserver can be used to
+  acquire a valid TLS certificate from an ACME CA for any DNS name
+  pointing to that server.
+
+  - Essentially a new threat due to lack of automation /
+    ad-hocness of older DV methods.
+
+- No mechanism for upgrade server TLS settings as new attacks
+  emerge.  Not specifically in scope of ACME but if you're already
+  able to twiddle server TLS settings, why not!
+
+- New trust relationship with ACME client:
+
+  - generate strong keys (easy to verify)
+
+  - configure server properly with good security settings
+    (easy to verify)
+
+  - keep confidential things confidential (not easy to verify)
+
+  - On the upside, you don't have to trust yourself so much :)
+
+
 Future
 ======
 
-- Additional certificate features
+Protocol
+--------
 
-  - additional alternative names
+- RESTification
 
-- Additional validation mechanisms?
+- Support more certificate features
 
-  -  DNSSEC?
+  - especially Subject Alternative Name
 
-- Support more web servers
+- Additional validation challenges
 
-- Support other applications
+  - DNSSEC, Email, WHOIS
 
-  - Email validation, certificate request, email client
-    configuration for S/MIME?
 
-- letsencrypt client can offer to configure additional HTTP security
+Clients
+-------
+
+- Expanded webserver support
+
+  - nginx configurator is in progress
+
+- letsencrypt client could offer to configure additional security
   mechanisms
 
-  - HTTP Strict Transport Security
+  - Disable HTTP entirely (not just redirect)
+
+  - HTTP Strict Transport Security (HSTS)
+    - https://tools.ietf.org/html/rfc6797
 
   - HTTP Public Key Pinning
     - https://developer.mozilla.org/en-US/docs/Web/Security/Public_Key_Pinning
     - TOFU (trust on first use)
 
-  - Ensure Secure cookies
+  - Secure cookies
 
-- Disable HTTP entirely (not just redirect)
+  - Configure new vhost from nothing (currently requires existing
+    vhost)
 
-- Configure new vhost from nothing (currently requires existing
-  vhost)
+    - DNS must already be in place
 
-  - DNS must already be in place
+  - Sufficiently powerful and privileged ACME clients could add DANE
+    CA or service certificate constraints to DNSSEC.
+
+    - https://tools.ietf.org/html/rfc6698
+
+- PaaS providers could request cert and turn on TLS (once DNS is set
+  up)
+
+
+Other applications
+------------------
+
+- Email validation, certificate request, email client
+  configuration for S/MIME?
