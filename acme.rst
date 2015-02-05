@@ -9,6 +9,15 @@ Non-trivial use cases
   https://groups.google.com/a/letsencrypt.org/forum/#!topic/ca-dev/ira3Qv0KvCE
 
 
+node-acme
+=========
+
+Running the node-acme server::
+
+  npm install node-acme
+  node server.js
+
+
 lets-encrypt-preview
 ====================
 
