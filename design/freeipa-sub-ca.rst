@@ -1,7 +1,5 @@
 ..
-  FreeIPA security domains
-
-  Copyright 2014 Red Hat, Inc.
+  Copyright 2014, 2015 Red Hat, Inc.
 
   This work is licensed under a
   Creative Commons Attribution 4.0 International License.
@@ -24,8 +22,8 @@ particular use (e.g. Puppet, VPN authentication, DNP3) can be
 regarded as invalid for other uses.
 
 Dogtag's `lightweight sub-CAs`_ feature will provide the foundation
-for supporting multiple security domains in FreeIPA.  This feature
-will provide:
+for supporting multiple sub-CAs in FreeIPA.  This feature will
+provide:
 
 - an API for creating and administering sub-CAs *within* a CA
   subsystem instance;
@@ -34,8 +32,8 @@ will provide:
   requests to a particular CA or sub-CA within the instance.
 
 FreeIPA will use these APIs to provide facilities for the creation
-and administration of security domains, and the issuance of
-certificates in those domains.
+and administration of sub-CAs, and the issuance of certificates from
+those CAs.
 
 .. _lightweight sub-CAs: http://pki.fedoraproject.org/wiki/Lightweight_sub-CAs
 
@@ -55,16 +53,15 @@ User certificates for VPN authentication
 A FreeIPA-based tool could be implemented to request short-lived
 user certificates for the purpose of VPN authentication.  It would
 be inappropriate to accept as valid any client certificate issued by
-the "primary" CA, so a security domain specifically for VPN
-authentication should be created for this purpose.  The
-certificate-issuing tool would direct certificates requests to the
-new security domain, and the resultant certificates would be signed
-with VPN security domain's signing key.
+the "primary" CA, so a sub-CA specifically for VPN authentication
+should be created for this purpose.  The certificate-issuing tool
+would direct certificates requests to the new CA, and the resultant
+certificates would be signed with VPN CA's signing key.
 
-A CLI command could be issued to retrieve the VPN security domain's
-signing certificate, and/or register it in a local security
-database, and the user will configure the VPN server to use that CA
-certificate for client certificate verification.
+A CLI command could be issued to retrieve the VPN CA's signing
+certificate, and/or register it in a local security database, and
+the user will configure the VPN server to use that CA certificate
+for client certificate verification.
 
 
 Puppet
@@ -88,8 +85,8 @@ applies not only to Puppet but in many situations.)
 .. _blog post: http://jcape.name/2012/01/16/using-the-freeipa-pki-with-puppet/
 
 
-Default security domains for host, service and user certificates
-----------------------------------------------------------------
+Default sub-CAs for host, service and user certificates
+-------------------------------------------------------
 
 FreeIPA user Baptiste Agasse requested having separate domains for
 host and user certificates by default:
@@ -108,17 +105,14 @@ Design
 Terminology
 -----------
 
-*security domain*
-  A CA or sub-CA as represented in FreeIPA, and associated metadata
-  (if any).  Each security domain maps to one *sub-CA*.
-
-*default security domain*
-  The existing security domain, corresponding to the top-level CA in
-  the Dogtag CA subsystem.  This terminology distinguishes it from
-  other security domains which correspond to sub-CAs.
-
 *sub-CA*
-  A lightweight sub-CA in the Dogtag CA instance.
+  A lightweight sub-CA in the Dogtag CA instance, and its
+  representation in FreeIPA.
+
+*top-level CA*
+  The top-level CA in the Dogtag CA subsystem, as distinct from
+  any of its sub-CAs.  It may or may not be a root CA, but is the
+  most "senior" CA used by FreeIPA to issue certificates.
 
 
 High-level design considerations
@@ -131,8 +125,8 @@ Nested sub-CAs (that is, more than a single level of sub-CAs beneath
 the primary CA in a Dogtag instance) are not an initial requirement
 (nor are they an initial requirement of the sub-CAs feature in
 Dogtag).  However, the schema and other aspects of the FreeIPA
-feature should take into account the possibility of nested security
-domains as a future requirement.
+feature should take into account the possibility of nested sub-CAs
+as a future requirement.
 
 
 Sub-CA discovery
@@ -140,19 +134,19 @@ Sub-CA discovery
 
 Sub-CAs could be created in Dogtag directly (i.e. not via FreeIPA).
 Whether these sub-CAs should be discovered by FreeIPA and made
-available as a FreeIPA security domain is an open question.
+available as a FreeIPA sub-CA is an open question.
 
 It may be desirable, or necessary (due to metadata requirements in
 FreeIPA) to require that FreeIPA have explicit knowledge of sub-CAs
 in order to use them.  In such case, other sub-CAs that have been
-created in Dogtag shall be ignored.
+created in Dogtag will be ignored by FreeIPA.
 
 
 Authorization
 ^^^^^^^^^^^^^
 
 Which FreeIPA users or roles can create and administer FreeIPA
-security domains needs to be decided.
+sub-CAs needs to be decided.
 
 How those users or roles map to Dogtag credentials also needs to be
 determined.  It may be sufficient to use the existing "CA agent"
@@ -219,21 +213,18 @@ Comments from *mkosec* (nested) and *ssorce*::
 Service principals
 ^^^^^^^^^^^^^^^^^^
 
-It must be possible to configure a FreeIPA service to belong to a
-security domain other than the default security domain.  Service
-certificates will be issued by the corresponding sub-CA.
+It should be possible to associate a FreeIPA service principal with
+a sub-CA or the top-level CA.  Service certificates will be issued
+from the configured CA.
 
 
 User principals
 ^^^^^^^^^^^^^^^
 
 It may not make sense to add the ability to assign user principals
-to a security domain, since there are many use cases for which a
+to a security domain, because there are many use cases for which a
 user may require a certificate, and these use cases may demand
 separate security domains, e.g. S/MIME vs VPN vs 802.1X and so on.
-
-If an imminent use case exists, this capability can be added.
-Otherwise it will be left alone.
 
 
 User Groups
@@ -241,17 +232,15 @@ User Groups
 
 There are many use cases for user certificates that could apply
 simultaneously.  Assuming that each use case is represented by a
-single security domain, not all use cases will necessarily apply to
-all users.  Because of this, it might be appropriate to "assign"
-each user to only the security domains that apply to that user.
-Only those users assigned to a security domain would be able to
-request certificates from that domain.
+single CA, not all use cases will necessarily apply to all users.
+Because of this, it might be appropriate to allows users to request
+certificates from only those CAs that apply to them.
 
 ***Does this make sense, and should it be an initial requirement?***
 
-Users would be associated to security domains through the existing
-*User Groups* would be used for this, with the group schema being
-extended to support assignment to zero or more security domains.
+Users would be associated to CAs through the existing *User Groups*
+would be used for this, with the group schema being extended to
+support assignment to zero or more CAs.
 
 
 Certmonger
@@ -264,8 +253,8 @@ sub-CA.  The behaviour for service principals belonging to the
 default security domain shall be unchanged.
 
 
-PKI profiles
-^^^^^^^^^^^^
+Certificate profiles
+^^^^^^^^^^^^^^^^^^^^
 
 ***This section requires further discussion and refinement.***
 
@@ -273,7 +262,15 @@ Most security domain use cases involve the generation of
 certificates for specific purposes.  Therefore, it may be useful to
 restrict the certificates that can be issued by a security domain to
 a limited number of Dogtag profiles, and/or to default certificate
-requests in that security domain to a particular profile.
+requests on that CA to a particular profile.
+
+Alternatively, rather than associating a profile (or profiles) to
+sub-CAs, it might be better to associate a single sub-CA to each
+profile.  Certificates issued within that profile would be issued
+from the configure CA.
+
+TODO: are there a use cases for issuing different types of
+certificates from a single CA?
 
 
 Security domain parameters
@@ -335,8 +332,8 @@ Feature Management
 CLI
 ---
 
-CLI commands for creating and adminstering security domains shall be
-created, with appropriate ACIs for authorisation.
+CLI commands for creating and adminstering sub-CAs shall be created,
+with appropriate ACIs for authorisation.
 
 CLI commands that retrieve certificates must be enhanced, or
 complementary commands provided, to retrieve certificate *chains*
@@ -352,7 +349,7 @@ indicate the security domain of any existing certificate (ideally
 the entire certification path).
 
 It will be necessary to support multiple certificates per-principal,
-in different security domains.
+issued from different CAs.
 
 The web UI for retrieving certificates must be extended to include
 the ability to download a chained certificate.
@@ -378,8 +375,8 @@ As part of the upgrade process:
 
 - The schema will be updated.
 
-- Any essential/default security domains will be created, and
-  relevant certificates issued.
+- Any essential/default sub-CAs will be created, and relevant
+  certificates issued.
 
 
 Tests
