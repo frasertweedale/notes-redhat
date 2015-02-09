@@ -1,3 +1,13 @@
+..
+  Copyright 2014, 2015 Red Hat, Inc.
+
+  This work is licensed under a
+  Creative Commons Attribution 4.0 International License.
+
+  You should have received a copy of the license along with this
+  work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
+
+
 Lightweight sub-CAs
 ===================
 
@@ -72,8 +82,8 @@ Each sub-CA will need its own OCSP signing certificate.
 Use cases
 ---------
 
-FreeIPA security domains
-~~~~~~~~~~~~~~~~~~~~~~~~
+FreeIPA use cases
+~~~~~~~~~~~~~~~~~
 
 FreeIPA usefulness and appeal as a PKI is currently limited by the
 fact that there is a single X.509 security domain.  Any certificate
@@ -192,15 +202,48 @@ Key generation and replication
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Keys will be generated when a sub-CA is created, according to the
-user-supplied parameters.
+user-supplied parameters.  If replica exist, they will become aware
+of the new sub-CA when LDAP replication occurs, but they will not
+have the signing key.  A mechanism for distributing the keys is needed.
 
 Signing certificates and keys are currently stored in the NSS
-database at ``/var/lib/pki/pki-tomcat/alias``.
+database at ``/var/lib/pki/pki-tomcat/alias``.  Sub-CA signing keys
+will also be stored in the NSS DB, with the key nickname recorded in
+LDAP for locating the correct key.
 
-The Sub-CA signing certificates and keys will need to be stored
-somehow, and there will need to be a mapping from the representation
-of a sub-CA in the LDAP database to corresponding signing keys and
-certificates.
+In a replicated environment, users and applications will need to be
+tolerant of not-yet-replicated signing keys.  For users, a small
+delay while replication occurs before using the new sub-CA on a
+different replica will be guaranteed to work is tolerable.  For
+testing, issues could be encountered, so tests that involve the
+creation of sub-CAs should be written to specifically handle the
+(soon to be remedied) absense of signing keys on a clone.
+Similarly, applications must be aware and tolerant of this scenario.
+
+When a signing operation is requested but the signing key is not yet
+present, options for indicating this to the cient include:
+
+- HTTP **404 Not Found** response status
+- HTTP **503 Service Unavailable** response status
+- Specific response data indicating the situation
+
+We will also implement a method to interrogate the CA itself as to
+its readiness.  Dogtag needs better diagnostics anyway, so this
+could be considered a starting point for richer CA or server
+diagnostics.
+
+Specifically, this method will indicate which of the following two
+states the CA is in:
+
+- Aware of existence of CA, but not in possession of keys
+- Ready to sign
+
+A third state is that the instance doesn't yet know about the
+existence of the CA.  This state will be indicated by a 404 response
+status or some other appropriate response.
+
+Another operation can query an *instance* to enumerate all the CAs
+that are known to the instance, and their current status.
 
 Appropriate mechanisms for propagating sub-CA private key material
 to clones needs to be devised.  A secure, automatic key transport
@@ -209,6 +252,29 @@ are at least as cryptographically strong as the key being wrapped.)
 Consideration should also be given to allowing users to opt out of
 this behaviour and (manually) transport keys themselves, should they
 wish.
+
+Key replication service
+'''''''''''''''''''''''
+
+A small service will be written to facilitiate distribution of new
+signing keys to replica.  This service will be a dependency of
+Dogtag as well as other projects.  It will not be part of FreeIPA
+itself, becaues Dogtag cannot depend on FreeIPA.
+
+The plan as it currently stands:
+
+- Prototype in python; nail down the API
+- From the prototype, formally specify the protocol
+- Implementations can then be written in other languages as needed
+- Investigate options for pluggable authorization
+
+If the key replication service is a "pull" mechanism, replicas must
+request the key as soon as they are aware of the creation of a new
+sub-CA.
+
+We should provide a convenient way for users to manage key
+distribution themselves if they do not want to, or cannot run the
+key replication service.  This could be scoped for later work.
 
 
 Ade's suggestion
