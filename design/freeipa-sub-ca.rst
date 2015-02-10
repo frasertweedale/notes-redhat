@@ -350,12 +350,103 @@ the ability to download a chained certificate.
 CLI
 ---
 
-CLI commands for creating and adminstering sub-CAs shall be created,
+CLI commands for creating and adminstering sub-CAs will be created,
 with appropriate ACIs for authorisation.
 
-CLI commands that retrieve certificates must be enhanced, or
-complementary commands provided, to retrieve certificate *chains*
-that include intermedite CA certificate.
+CLI commands that retrieve certificates will be enhanced to add the
+capability to retrieve certificate *chains* from the root to the
+end-entity certificate.
+
+
+New commands
+^^^^^^^^^^^^
+
+``ipa ca-find``
+'''''''''''''''
+
+Search for sub-CAs.
+
+
+``ipa ca-show``
+'''''''''''''''
+
+Show sub-CA details.
+
+
+``ipa ca-add``
+''''''''''''''
+
+Create a new sub-CA, a direct subordinate of the top-level CA.
+Future work could allow nested sub-CAs.
+
+``--name <string>``
+  Friendly name
+
+``--shortname <handle>``
+  Server handle, in conformance with Dogtag's requirements
+
+``--profile <profile-id>``
+  Associate a profile to the sub-CA.  **TODO:** can be used multiple
+  times?
+
+**TODO**: how much control over key parameters should be given to
+admin?  We could defualt to the key size and type of the parent CA
+and provide an option for admin to specify something different?
+
+``--validity``
+  Specify the CA certificate validity.  Something human-friendly
+  should be used, e.g. a duration spec that supports ``5y``,
+  ``365d``, etc.  **TODO** is there a precendent for this sort of
+  duration interpretation in FreeIPA?  If so, be consistent.
+
+  The default validity could be the default validity used by
+  ``ipa-server-install``.  **TODO** what is the default duration?
+
+**TODO**: how to associate groups with the CA?
+
+
+``ipa ca-disable``
+''''''''''''''''''
+
+Disable a sub-CA.  The sub-CA will no longer be available for
+issuing certificates.
+
+
+``ipa ca-enable``
+'''''''''''''''''
+
+(Re-)enable a sub-CA.
+
+
+Enhanced commands
+^^^^^^^^^^^^^^^^^
+
+``ipa cert-find``
+'''''''''''''''''
+
+``--ca <handle>``
+  Specify a particular CA to use (omit to specify top-level CA).
+  The special handle ``*`` is used to search in all CAs.
+
+
+``ipa cert-show``
+'''''''''''''''''
+
+``--ca <handle>``
+  Specify a sub-CA (omit to specify top-level CA).
+``--chain``
+  Request the certificate chain (when saving via ``--out <file>``,
+  PEM format is used; this is the format uesd for the end-entity
+  certificate).
+
+
+``ipa cert-request``
+''''''''''''''''''''
+
+``--ca <handle>``
+  Specify a sub-CA to which to direct the request.
+
+
 
 
 Certmonger
@@ -369,6 +460,15 @@ There are numerous certificate chain formats; common formats will be
 supported, and an option will be used to select the desired format.
 For uncommon formats, administrators will need to retrieve the chain
 in one of the common formats and manually compose what they need.
+
+Common certificate chain formats:
+
+- PEM (sequence of PEM-encoded certificates)
+- PKCS #7 (certificate chain object)
+- PKCS #12
+
+Apache and nginx expect a sequence of PEM-encoded certificates, so
+PEM could be minimal requirement.
 
 
 Configuration
