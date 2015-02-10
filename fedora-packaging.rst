@@ -1,3 +1,6 @@
+Tools
+=====
+
 yum
 ---
 
@@ -45,3 +48,21 @@ COPR
 
   sudo yum install -y dnf-plugins-core
   sudo dnf copr enable -y mkosek/freeipa
+
+
+Becoming a Fedora packager
+==========================
+
+- packaging workshop
+
+- writing specfile
+  - https://fedoraproject.org/wiki/Packaging:Guidelines
+
+- submitting to bugzilla
+  - https://fedoraproject.org/wiki/Package_Review_Process
+
+- get a sponsor
+  - https://fedoraproject.org/wiki/How_to_get_sponsored_into_the_packager_group
+
+- reviewing packages
+  - find packages to review and review them?
