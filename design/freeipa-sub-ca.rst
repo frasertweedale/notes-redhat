@@ -355,6 +355,19 @@ The web UI for retrieving certificates must be extended to include
 the ability to download a chained certificate.
 
 
+Certmonger
+----------
+
+For *service* administrator use cases, certificate chains will be
+delivered via certmonger, in according with the existing use pattern
+where ``ipa-getcert`` is used to retrieve and renew certificates.
+
+There are numerous certificate chain formats; common formats will be
+supported, and an option will be used to select the desired format.
+For uncommon formats, administrators will need to retrieve the chain
+in one of the common formats and manually compose what they need.
+
+
 Major configuration options and enablement
 ==========================================
 
