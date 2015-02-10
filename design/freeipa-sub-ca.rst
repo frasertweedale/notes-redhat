@@ -329,19 +329,8 @@ Implementation
 Feature Management
 ==================
 
-CLI
----
-
-CLI commands for creating and adminstering sub-CAs shall be created,
-with appropriate ACIs for authorisation.
-
-CLI commands that retrieve certificates must be enhanced, or
-complementary commands provided, to retrieve certificate *chains*
-that include intermedite CA certificate.
-
-
-Web UI
-------
+UI
+--
 
 The web UI must be enhanced to allow the user to indicate which
 security domain a certificate request should be directed to, and to
@@ -353,6 +342,17 @@ issued from different CAs.
 
 The web UI for retrieving certificates must be extended to include
 the ability to download a chained certificate.
+
+
+CLI
+---
+
+CLI commands for creating and adminstering sub-CAs shall be created,
+with appropriate ACIs for authorisation.
+
+CLI commands that retrieve certificates must be enhanced, or
+complementary commands provided, to retrieve certificate *chains*
+that include intermedite CA certificate.
 
 
 Certmonger
@@ -368,21 +368,16 @@ For uncommon formats, administrators will need to retrieve the chain
 in one of the common formats and manually compose what they need.
 
 
-Major configuration options and enablement
-==========================================
+Configuration
+-------------
 
-.. Any configuration options? Any commands to enable/disable the
-   feature or turn on/off its parts? 
-
-
-Replication
-===========
-
-There should be no particular replication considerations.
+..
+  Any configuration options?
+  Any commands to enable/disable the feature or turn on/off its parts?
 
 
-Updates and Upgrades
-====================
+Upgrade
+=======
 
 As part of the upgrade process:
 
@@ -392,14 +387,27 @@ As part of the upgrade process:
   certificates issued.
 
 
-Tests
-=====
+How to Test
+===========
 
-.. Identify any tests associated with this feature including:
-   - JUnit
-   - Functional
-   - Build Time
-   - Runtime
+..
+  Easy to follow instructions how to test the new feature. FreeIPA
+  user needs to be able to follow the steps and demonstrate the new
+  features.
+
+  The chapter may be divided in sub-sections per [[#Use_Cases|Use
+  Case]].
+
+
+Test Plan
+=========
+
+..
+  Test scenarios that will be transformed to test cases for FreeIPA
+  [[V3/Integration_testing|Continuous Integration]] during
+  implementation or review phase. This can be also link to
+  [https://git.fedorahosted.org/cgit/freeipa.git/ source in cgit] with
+  the test, if appropriate.
 
 
 Dependencies
@@ -408,30 +416,12 @@ Dependencies
 - Dogtag with sub-CA feature (slated for v10.3).
 
 
-Packages
-========
+Author
+======
 
-.. Provide the initial packages that finally included this feature
-   (e.g. "pki-core-10.1.0-1")
+Fraser Tweedale
 
-
-External Impact
-===============
-
-.. Impact on other development teams and components?
-
-
-History
-=======
-
-**ORIGINAL DESIGN DATE**: 2014-10-14
-
-.. Provide the original design date in 'Month DD, YYYY' format (e.g.
-   September 5, 2013).
-
-.. Document any design ideas that were rejected during design and
-   implementatino of this feature with a brief explanation
-   explaining why.
-
-.. Note that this section is meant for documenting the history of
-   the design, not the history of changes to the wiki.
+Email
+  ftweedal@redhat.com
+IRC
+  ftweedal
