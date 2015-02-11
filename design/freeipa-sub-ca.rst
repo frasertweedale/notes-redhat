@@ -1,4 +1,37 @@
 ..
+  notes:
+  delete ca
+  certificate renewal for sub-CAs
+  changing the chaining
+    reuse what honza has done
+  new role for CA creation/administration
+    delegate administration of specific CA
+      talk to rcrit
+
+  profiles themselves
+    there is no file upload capability in CLI?
+    see what ipa cert-request does
+    but we will probably just have to copy&paste for now
+
+  certmonger
+
+  - supports retrieving chain
+  - add cap to fetch chain in cert plugin in IPA
+  - different formats
+    - pre-save and post-save command
+    - req cert from CA
+    - exec pre-save
+    - save
+    - exec post-save
+    - storage: nssdb, pem file
+      - need something else?  convert in post-save command
+
+  - dynamically add CA to certmonger
+
+  - add argument to ipa-getcert for specifying subca???
+  - wrapper for configuring getcert to know about / use sub-ca
+
+..
   Copyright 2014, 2015 Red Hat, Inc.
 
   This work is licensed under a
@@ -132,21 +165,52 @@ feature should take into account the possibility of nested sub-CAs
 as a future requirement.
 
 
+Externally signed and self-signed lightweight CAs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Initially all sub-CAs will be children of the top-level CA, but the
+sub-CAs feature should be designed mindfully of the possible future
+requirement of supporting multiple separate trust chains.
+Additional work will be required in Dogtag to support these use
+cases.
+
+
+Externally signed lightweight CAs
+'''''''''''''''''''''''''''''''''
+
+We would support partial creation of the CA to generate the key and
+a Certificate Signing Request (CSR) for submission to the external
+CA.  The signed certificate would then be imported to complete the
+process.
+
+The "upstream" root certificate and intermediate CA certificates
+would be stored in LDAP for distribution to clients, with the root
+CA having an ``ipaKeyTrust`` value of ``trusted`` and intermediate
+CAs having a value of ``unknown`` (see `CA certificate renewal`_).
+
+.. _CA certificate renewal: http://www.freeipa.org/page/V4/CA_certificate_renewal
+
+
+Self-signed lightweight CAs
+'''''''''''''''''''''''''''
+
+In this case, FreeIPA causes Dogtag to generate a new self-signed
+(root) CA.  The CA certificate would be stored in LDAP for
+distribution to clients, having and ``ipaKeyTrust`` value of
+``trusted``.
+
+
 Sub-CA discovery
 ^^^^^^^^^^^^^^^^
 
-Sub-CAs could be created in Dogtag directly (i.e. not via FreeIPA).
-Whether these sub-CAs should be discovered by FreeIPA and made
-available as a FreeIPA sub-CA is an open question.
-
-It may be desirable, or necessary (due to metadata requirements in
-FreeIPA) to require that FreeIPA have explicit knowledge of sub-CAs
-in order to use them.  In such case, other sub-CAs that have been
-created in Dogtag will be ignored by FreeIPA.
+Sub-CAs created directly in Dogtag **will not be discovered** by
+FreeIPA.  FreeIPA-created and non-FreeIPA-created sub-CAs can
+coexist in Dogtag but FreeIPA will not be aware of CAs it did not
+create.
 
 
-Authorization
-^^^^^^^^^^^^^
+CA administration authorization
+-------------------------------
 
 Which FreeIPA users or roles can create and administer FreeIPA
 sub-CAs needs to be decided.
@@ -158,7 +222,7 @@ Dogtag could be required.
 
 (*ftweedal*) since all FreeIPA <-> Dogtag communication is currently
 done via a single certificate that has administrator privileges on
-the CA instance, my initial thought is to continue this system and
+the CA instance, my initial plan is to continue this system and
 control access via FreeIPA ACIs.
 
 Comments from *mkosec* (nested) and *ssorce*::
@@ -213,111 +277,108 @@ Comments from *mkosec* (nested) and *ssorce*::
   Simo.
 
 
-Service principals
-^^^^^^^^^^^^^^^^^^
+CA Administrator role
+^^^^^^^^^^^^^^^^^^^^^
 
-It should be possible to associate a FreeIPA service principal with
-a sub-CA or the top-level CA.  Service certificates will be issued
-from the configured CA.
-
-
-User principals
-^^^^^^^^^^^^^^^
-
-It may not make sense to add the ability to assign user principals
-to a security domain, because there are many use cases for which a
-user may require a certificate, and these use cases may demand
-separate security domains, e.g. S/MIME vs VPN vs 802.1X and so on.
+A *CA Administrator* role should be created.  ``admin`` will have
+this role initially.
 
 
-User Groups
-^^^^^^^^^^^
-
-There are many use cases for user certificates that could apply
-simultaneously.  Assuming that each use case is represented by a
-single CA, not all use cases will necessarily apply to all users.
-Because of this, it might be appropriate to allows users to request
-certificates from only those CAs that apply to them.
-
-***Does this make sense, and should it be an initial requirement?***
-
-Users would be associated to CAs through the existing *User Groups*
-would be used for this, with the group schema being extended to
-support assignment to zero or more CAs.
-
-
-Certmonger
+Delegation
 ^^^^^^^^^^
 
-Pursuant to the `Service principals`_ section, ``ipa-getcert`` for a
-service principal configured to belong to a non-default security
-domain should result in certificates issued by the corresponding
-sub-CA.  The behaviour for service principals belonging to the
-default security domain shall be unchanged.
+It should be possible (now or in a future iteration) to delegate
+administration of a specific sub-CA to a user or group.  (This is
+possibly only post-creation of the sub-CA).  The *CA Administrator*
+role would still have administrative powers over the sub-CA in
+addition to the delegate(s).
 
 
-Certificate profiles
-^^^^^^^^^^^^^^^^^^^^
+Certificate request ACLs
+------------------------
 
-***This section requires further discussion and refinement.***
+Sub-CA use cases involve the issuance of certificates for specific
+purposes.  It is necessary to be able to restrict the types of
+certificates that can be issued by a sub-CA, and to which entities
+(principals).  ACLs will be used to associate profiles, principals
+and groups with a CA.  Specifically:
 
-Most security domain use cases involve the generation of
-certificates for specific purposes.  Therefore, it may be useful to
-restrict the certificates that can be issued by a security domain to
-a limited number of Dogtag profiles, and/or to default certificate
-requests on that CA to a particular profile.
+- A CA can have multiple ACLs.
 
-Alternatively, rather than associating a profile (or profiles) to
-sub-CAs, it might be better to associate a single sub-CA to each
-profile.  Certificates issued within that profile would be issued
-from the configure CA.
+- An ACL can have multiple profiles.
 
-TODO: are there a use cases for issuing different types of
-certificates from a single CA?
+- An ACL can have multiple users, services, hosts, (user) groups and
+  hostgroups associated with it.
 
+- The interpretation of the ACL is, "These principals (or groups)
+  are permitted to request certificates using these profiles, from
+  this CA."
 
-Security domain parameters
---------------------------
-
-A security domain has the following parameters:
-
-*Name*
-  A "human-friendly" name for the security domain, chosen by an
-  administrator.
-
-*Subject Name*
-  Subject Name for the corresponding sub-CA certificate.  Could be
-  explicit, or derived from the *Name* and the parent CA's Subject
-  Name.
-
-*Key algorithms and size*
-  The user creating the security domain should be able to specify
-  the key algorithms and size (or for elliptic curve keys, the
-  curve) for the sub-CA key.
+See also the ``ipa caacl-*`` commands in the CLI section below.
 
 
 Schema
+^^^^^^
+
+**TODO**
+
+
+Sub-CA
 ------
 
-TODO
+The FreeIPA representation of a sub-CA has the following fields:
+
+*name*
+  A "human-friendly" name for the sub-CA.  This name will be used in
+  the web UI, CLI and so on.  Required; must be unique.
+
+*shortname*
+  The shortname is used to refer to the CA in Dogtag and conforms to
+  Dogtag's sub-CA naming requirements.  It may also be used to refer
+  to the CA in user-visible interfaces and information, if a shorter
+  representation is needed.  Required; must be unique.
 
 
-Install
--------
+Certificate parameters
+^^^^^^^^^^^^^^^^^^^^^^
 
-``ipa-server-install`` need not initially create any sub-CAs.  The
-existing behaviour is appropriate and no additional behaviour is
-needed.
+Public key
+''''''''''
 
-There is scope creating a security domain for issuing the FreeIPA
-server certificates if that is deemed appropriate.
+**TODO** How much control over key parameters should be given for
+sub-CA creation?  We could default to the key size and type of the
+parent CA and provide an option to specify something different?
+
+Subject Distinguished Name
+''''''''''''''''''''''''''
+
+When creating a sub-CA, the subject DN is constructed by copying the
+DN of the parent CA, then setting the CN to the *name*.  More
+control could be implemented if there is a clear case for it.
+
+Validity
+''''''''
+
+The default validity could be the default validity used by
+``ipa-server-install``.  **TODO** what is the default duration?
+
+Specify the CA certificate validity.  Something human-friendly
+should be used, e.g. a duration spec that supports ``5y``,
+``365d``, etc.  **TODO** is there a precendent for this sort of
+duration interpretation in FreeIPA?  If so, be consistent.
 
 
-.. The proposed solution.  This may include but is not limited to:
-   - new schema
-   - syntax of commands
-   - logic flow
-   - access control considerations
+Schema
+^^^^^^
+
+**TODO**
+
+
+Installation
+------------
+
+``ipa-server-install`` need not initially create any sub-CAs, but
+see the "Default sub-CAs" use case.
 
 
 Implementation
@@ -335,10 +396,10 @@ Feature Management
 UI
 --
 
-The web UI must be enhanced to allow the user to indicate which
-security domain a certificate request should be directed to, and to
-indicate the security domain of any existing certificate (ideally
-the entire certification path).
+The web UI must be enhanced to allow the user to indicate which CA a
+certificate request should be directed to, and to indicate the CA of
+any existing certificate (ideally, a brief representation the entire
+certification path).
 
 It will be necessary to support multiple certificates per-principal,
 issued from different CAs.
@@ -351,7 +412,7 @@ CLI
 ---
 
 CLI commands for creating and adminstering sub-CAs will be created,
-with appropriate ACIs for authorisation.
+with appropriate ACIs for authorization.
 
 CLI commands that retrieve certificates will be enhanced to add the
 capability to retrieve certificate *chains* from the root to the
@@ -364,11 +425,11 @@ New commands
 ``ipa ca-find``
 '''''''''''''''
 
-Search for sub-CAs.
+Search for sub-CAs.  **TODO** more detail needed.
 
 
-``ipa ca-show``
-'''''''''''''''
+``ipa ca-show <shortname>``
+'''''''''''''''''''''''''''
 
 Show sub-CA details.
 
@@ -382,79 +443,131 @@ Future work could allow nested sub-CAs.
 ``--name <string>``
   Friendly name
 
-``--shortname <handle>``
+``--shortname <shortname>``
   Server handle, in conformance with Dogtag's requirements
 
-``--profile <profile-id>``
-  Associate a profile to the sub-CA.  **TODO:** can be used multiple
-  times?
-
-**TODO**: how much control over key parameters should be given to
-admin?  We could defualt to the key size and type of the parent CA
-and provide an option for admin to specify something different?
-
-``--validity``
-  Specify the CA certificate validity.  Something human-friendly
-  should be used, e.g. a duration spec that supports ``5y``,
-  ``365d``, etc.  **TODO** is there a precendent for this sort of
-  duration interpretation in FreeIPA?  If so, be consistent.
-
-  The default validity could be the default validity used by
-  ``ipa-server-install``.  **TODO** what is the default duration?
-
-**TODO**: how to associate groups with the CA?
+See also the discussion above about *public key* parameters and
+*validity*.  Whatever is decided will be reflected in additional
+arguments to this command.
 
 
-``ipa ca-disable``
-''''''''''''''''''
+``ipa ca-del <shortname>``
+''''''''''''''''''''''''''
+
+Delete the given certificate authority.  This will remove knowledge
+of the CA from the FreeIPA directory but *will not delete the sub-CA
+from Dogtag*.  Dogtag will still know about the CA and the
+certificates it issued, be able to act at a CRL / OCSP authority for
+it, etc.
+
+
+``ipa ca-disable <shortname>``
+''''''''''''''''''''''''''''''
 
 Disable a sub-CA.  The sub-CA will no longer be available for
 issuing certificates.
 
 
-``ipa ca-enable``
-'''''''''''''''''
+``ipa ca-enable <shortname>``
+'''''''''''''''''''''''''''''
 
 (Re-)enable a sub-CA.
+
+
+``ipa caacl-add <shortname> <acl>``
+'''''''''''''''''''''''''''''''''''
+
+Create a CA ACL object.
+
+
+``ipa caacl-del <acl>``
+'''''''''''''''''''''''
+
+Delete the CA ACL.
+
+
+``ipa caacl-add-profile <acl> <profileId>``
+'''''''''''''''''''''''''''''''''''''''''''
+
+Add a profile to the CA ACL.
+
+
+``ipa caacl-remove-profile <acl> <profileId>``
+''''''''''''''''''''''''''''''''''''''''''''''
+
+Remove the profile from the CA ACL.
+
+
+``ipa caacl-add-member <acl>``
+''''''''''''''''''''''''''''''
+
+``--users``
+  Add user(s)
+``--hosts``
+  Add host(s)
+``--services``
+  Add service(s)
+``--groups``
+  Add user group(s)
+``--hostgroups``
+  Add host group(s)
+
+
+``ipa caacl-remove-member <acl>``
+'''''''''''''''''''''''''''''''''
+
+``--users``
+  Remove user(s)
+``--hosts``
+  Remove host(s)
+``--services``
+  Remove service(s)
+``--groups``
+  Remove user group(s)
+``--hostgroups``
+  Remove host group(s)
 
 
 Enhanced commands
 ^^^^^^^^^^^^^^^^^
 
-``ipa cert-find``
-'''''''''''''''''
+``ipa cert-find [shortname]``
+'''''''''''''''''''''''''''''
 
-``--ca <handle>``
-  Specify a particular CA to use (omit to specify top-level CA).
-  The special handle ``*`` is used to search in all CAs.
+``shortname``
+  Optional positional parameter to specify a sub-CA to use (omit to
+  specify the top-level CA).  The special shortname ``*`` is used to
+  search in all CAs.
 
 
-``ipa cert-show``
-'''''''''''''''''
+``ipa cert-show [shortname]``
+'''''''''''''''''''''''''''''
 
-``--ca <handle>``
-  Specify a sub-CA (omit to specify top-level CA).
+``shortname``
+  Optional positional parameter to specify a sub-CA (omit to specify
+  the top-level CA).
+
 ``--chain``
   Request the certificate chain (when saving via ``--out <file>``,
   PEM format is used; this is the format uesd for the end-entity
   certificate).
 
 
-``ipa cert-request``
-''''''''''''''''''''
+``ipa cert-request [shortname]``
+''''''''''''''''''''''''''''''''
 
-``--ca <handle>``
-  Specify a sub-CA to which to direct the request.
-
-
+``shortname``
+  Optional positional parameter to specify a sub-CA to which to
+  direct the request (omit to specify the top-level CA).
 
 
 Certmonger
 ----------
 
 For *service* administrator use cases, certificate chains will be
-delivered via certmonger, in according with the existing use pattern
-where ``ipa-getcert`` is used to retrieve and renew certificates.
+delivered via certmonger, in accordance with the existing use
+pattern where ``ipa-getcert`` is used to retrieve and renew
+certificates.
 
 There are numerous certificate chain formats; common formats will be
 supported, and an option will be used to select the desired format.
@@ -489,6 +602,8 @@ As part of the upgrade process:
 - Any essential/default sub-CAs will be created, and relevant
   certificates issued.
 
+- ``admin`` will be assigned the *CA Administrator* role.
+
 
 How to Test
 ===========
@@ -516,7 +631,10 @@ Test Plan
 Dependencies
 ============
 
+- FreeIPA `Certificate Profiles`_ feature.
 - Dogtag with sub-CA feature (slated for v10.3).
+
+.. _Certificate Profiles: http://www.freeipa.org/page/V4/Certificate_Profiles
 
 
 Author
