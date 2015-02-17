@@ -51,6 +51,12 @@ requests to which CAs, using which profiles.
 Implementation
 ==============
 
+The ``ipa cert-request`` command currently assumes that it will get
+a certificate back.  It will need to be updated to handle the case
+where a request gets enqueued and provide useful feedback to the
+user.  It should also prominently display the request identifier
+that can be used with the new ``ipa certrequest-*`` commands (see
+below).
 
 
 Feature Management
