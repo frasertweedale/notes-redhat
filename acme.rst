@@ -281,3 +281,25 @@ Other applications
 
 - Email validation, certificate request, email client
   configuration for S/MIME?
+
+
+Spec observations
+=================
+
+- proofOfPossession server and client nonces are same
+
+- registration requirements not correct (JWK is included in JWS
+  header)
+
+- "challenges" example does not have closing square bracket
+
+- "identifier" type: "dns" vs "domain"
+
+- CN of dvsni certificate not specified
+
+- "Servers SHOULD NOT respond to GET requests for registration
+  resources, since these requests are not authenticated"
+
+  - Why not MUST NOT ?
+
+
