@@ -204,7 +204,15 @@ Key generation and replication
 Keys will be generated when a sub-CA is created, according to the
 user-supplied parameters.  If replica exist, they will become aware
 of the new sub-CA when LDAP replication occurs, but they will not
-have the signing key.  A mechanism for distributing the keys is needed.
+have the signing key.  A mechanism for distributing the keys is
+needed.
+
+In the initial implementation, the sub-CA signing key (which is used
+to sign certificates) will also be used for signing CRLs and OCSP
+responses.  This simplifies the implementation and configuration,
+and means that only one private key needs to be replicated.  Support
+for delegated OCSP and CRL signing could be implemented at a later
+time, if the use case emerges.
 
 Signing certificates and keys are currently stored in the NSS
 database at ``/var/lib/pki/pki-tomcat/alias``.  Sub-CA signing keys
@@ -376,32 +384,19 @@ initialised such that:
 Database schema
 ~~~~~~~~~~~~~~~
 
-Certificate requests
-^^^^^^^^^^^^^^^^^^^^
+Certificate and revocation requests
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Certificate requests are currently stored in a single "queue" at
-``cn=<N>,ou=ca,ou=requests,{rootSuffix}``.  Options for managing
-requests to sub-CAs follow.
+Certificate issuance and revocation requests are currently stored in
+a single "queue" at ``cn=<N>,ou=ca,ou=requests,{rootSuffix}``.  The
+single queue will continue to be used (shared by the top-level CA
+and all sub-CAs) but the data stored for a queue will now include a
+reference to the sub-CA (if any) to which the request is directed.
 
-Shared queue
-''''''''''''
-
-Continue using a single queue and augment the request object such
-that it specifies the target CA.
-
-Separate queues
-'''''''''''''''
-
-Implement hierarchical requests queues, thus requiring no changes to
-the request object schema.  The ``RequestSubsystem`` seems to have
-some provision for supporting multiple queues with different names.
-It appears that a small amount of work is required in the
-``RequestSubsystem``, ``ARequestQueue`` and ``RequestQueue`` classes
-to support separate queues.
-
-Sub-CA requests should be contained in an OU underneath the primary
-CA so that searches for pending requests can (optionally) include
-all sub-CAs.
+Request objects have the ``extensibleObject`` object class, so the
+existing ``setExtData`` and ``getExtDataInString`` facility will be
+used to store a ``String`` sub-CA reference, using the key
+``req_authority_ref``.
 
 
 Certificate repository
@@ -439,15 +434,11 @@ various kinds of LDAP searches are easily supported, including:
 Serial number considerations
 ''''''''''''''''''''''''''''
 
-Serial numbers used by sub-CA certificates can safely collide with
-serial numbers used by other signing certificates - parent, siblings
-or children.
-
-Each certificate repository or sub-repository will be accessed via a
-distinct ``CertificateRepository`` instance owned by the
-``CertificateAuthority`` instance representing that CA or sub-CA.
-An implication of this is that certificates issues by different CAs
-could have the same serial number.
+If sequential serial numbers are used, serial numbers of
+certificates issued by sub-CAs can collide with serial numbers of
+certificates issued by other CAs - parent, siblings or children.
+This may also occur if random serial numbers are used, although it
+is less likely.
 
 
 CRL considerations
@@ -470,15 +461,13 @@ the codebase and database schema as a *CRL Issuing Point* or
 Schema
 ^^^^^^
 
-CRLs will be located at
-``cn=MasterCRL,ou=crlIssuingPoints,ou=ca,{rootSuffix}``.
+CRLs for the top-level CA are located at
+``cn=<CRL_id>,ou=crlIssuingPoints,ou=ca,{rootSuffix}``.
 
-The ``MasterCRL`` issuing point for the top-level CA is located at
-``cn=MasterCRL,ou=crlIssuingPoints,ou=ca,{rootSuffix}``.  Sub-CA
-CRLIPs will be located beneath the top-level CRLIP OU, in an OU
-named for the sub-CA ID.  Therefore, the DN for a sub-CA's
-certificate repository will be
-``ou={subCAId},ou=certificateRepository,ou=ca,{rootSuffix}``.
+Sub-CA CRLIPs will be located beneath the top-level CRLIP OU, in an
+OU named for the sub-CA ID.  Therefore, a sub-CA's CRLIP OU will be
+have the DN ``ou={subCAId},ou=crlIssuingPoints,ou=ca,{rootSuffix}``,
+with CRLs located beneath that.
 
 Initially, only the one CRLIP per sub-CA will be maintained.
 Support for multiple sub-CA CRLIPs is YAGNI'd unless a clear use
@@ -518,13 +507,16 @@ REST API
 OCSP considerations
 ~~~~~~~~~~~~~~~~~~~
 
-We need to decide whether sub-CAs use the existing OCSP responder
-facility, i.e. *http://<domain>:80/ca/ocsp*, or mount their own
-responder at some sub-resource, e.g.
-*http://<domain>:80/ca/<subCA>/ocsp*.
+The existing OCSP responder will be used to obtain status
+information for certificates issued by sub-CAs.
 
-It is feasible to use a single OCSP responder (the existing one) for
-the entire instance - the primary CA as well as all sub-CAs \-
+In the initial phase of implementation, the OCSP responder will look
+for the ``caRef`` GET parameter and use it to route the request to
+the appropriate CA.  This necessitates that the
+AuthorityKeyInformation extension be update to include this
+parameter in the responder URI.
+
+It is feasible (but more work) to avoid the ``caRef`` parameter
 because OCSP requests identify both the issuing authority and the
 serial number of the certificate being checked::
 
@@ -534,9 +526,20 @@ serial number of the certificate being checked::
        issuerKeyHash       OCTET STRING, -- Hash of issuer's public key
        serialNumber        CertificateSerialNumber }
 
+This approach will require building (perhaps lazily) maps of names
+or key hashes to their corresponding ``CertificateAuthority``
+objects (or else there will be a linear lookup cost on each
+request).  Mappings will have to be keyed by ``hashAlgorithm`` as
+well as the hash value.  See *OCSP signer lookup* below for more
+details on this approach.
+
 
 Revocation check
 ^^^^^^^^^^^^^^^^
+
+**TODO: how does the below process fit in?  The OCSPServlet does not
+use CRL data at all.  Is this section relevant for separate OCSP
+instances?**
 
 OCSP revocation checks take place in the ``processRequest`` method
 of the ``DefStore`` class.  This method is passed a ``CertID``,
@@ -568,8 +571,8 @@ performance for a large number of sub-CAs/CRLs should be profiled,
 and optimisation attempted only if the performance is unacceptable.
 
 
-Response signing
-^^^^^^^^^^^^^^^^
+OCSP signer lookup
+^^^^^^^^^^^^^^^^^^
 
 OCSP ``ResponseData`` signing is performed by the ``sign`` method of
 the ``OCSPAuthority`` class.
@@ -714,31 +717,86 @@ interface for:
 Implementation
 --------------
 
-- Update ``SigningUnit`` and have its users supply the nickname
-  configuration, so that there can be multiple ``SigningUnit``
-  instances using different keys.
+``EnrollProfile`` and ``CAEnrollProfile``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- Enhance ``CertificateAuthority`` to allow instantiation/retrieval
-  of sub-CA  ``CertificateAuthority`` instances.
+The ``EnrollProfile`` class is responsible for populating
+certificate information.  Modifications needed are:
 
-- Update ``CAEnrollProfile.getAuthority`` to retrieve an indicated
-  sub-CA (via new capabilities of ``CertificateAuthority`` class).
+* When creating request objects, store the sub-CA indicator from the
+  profile context in the request data.
 
-- Store target CA in request metaInfo
+* When executing requests, switch the ``ICertificateAuthority``
+  context for enrollment to the sub-CA indicated in the request data
+  (if any).
 
-.. Any additional requirements or changes discovered during the
-   implementation phase.
 
-.. Include any rejected design information in the History section.
+``SigningUnit``
+~~~~~~~~~~~~~~~
+
+Update ``SigningUnit`` and have its owners supply the nickname
+configuration, so that there can be multiple ``SigningUnit``
+instances using different keys.
+
+
+``CertificateAuthority`` and ``ICertificateAuthority``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add methods to retrieve a sub-CAs given a ``String`` sub-CA
+reference or an ordered ``List<String>`` of individual sub-CA
+handles.
+
+Update construction and initialisation to give the instance
+awareness of its position in the CA heirarchy, and to initialise the
+``CertificateRepository``, ``SigningUnit`` instances to the correct
+DNs, nicknames, etc.
+
+
+``AuthInfoAccessExtDefault``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The *Authority Information Access* extension shall include the
+``caRef`` parameter in the OCSP responder URI (see the OCSP
+discussion above).  This is accomplished by reading the sub-CA
+reference from the request and if not null, appending a query
+parameter to the responder URI.
+
+
+``AuthorityKeyIdentifierExtDefault``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The *Authority Key Identifier* extension must identify the immediate
+signing authority, which could be a sub-CA.  Accordingly, the sub-CA
+reference reference is read from the request data and used to query
+the top-level CA for the appropriate sub-CA.
+
+
+Servlets and web interface
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Servlets and web templates (HTML, javascript) will be update to
+recognise and propagate the ``caRef`` request parameter, which
+indicates a sub-CA.  If the parameter is absent or empty, the
+top-level CA is implied.
+
+Care must be taken in JavaScript code to ensure that ``null`` values
+for the ``caRef`` parameter do not result in a literal string value
+of ``"null"``.  This case should be handle by either using the empty
+string or omitting the parameter from the subsequent request.
+
+Where appropriate, web forms should include a field for specify a
+sub-CA.
 
 
 Major configuration options and enablement
 ------------------------------------------
 
-FILL ME IN
+A single, instance-wide configuration value should enable or disable
+the *creation* of sub-CAs.  The ``pkispawn(8)`` configuration format
+should be updated to provide a way to control this configuration
+when deploying an instance.
 
-.. Any configuration options? Any commands to enable/disable the
-   feature or turn on/off its parts?
+**TODO** should we default on/off for new instances?
 
 
 Cloning
@@ -749,11 +807,11 @@ CRL/OCSP signing keys) must be made available to the clone, in
 addition to the top-level CA signing key.
 
 
-Updates and Upgrades
---------------------
+Upgrading
+---------
 
-Because this design introduces entirely new functionality, there are
-no known upgrade path concerns.
+Several web templates have been updated and these updates will need
+to be deployed on existing instances by ``pki-server-upgrade(8)``.
 
 
 Tests
@@ -769,7 +827,7 @@ Tests
 Dependencies
 ------------
 
-.. Any new package and library dependencies?
+* Secure key/secret replication service.
 
 
 Packages
