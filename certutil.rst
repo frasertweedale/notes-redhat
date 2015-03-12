@@ -21,3 +21,8 @@ trusted server CA for that category.  The categories are
 Modify certificate trust::
 
   certutil -d . -M -t "CTu,Cu,Cu" -n <nickname>
+
+
+Add an end-entity certificate as a trusted peer::
+
+  certutil -d <db> -A -t P,P,P -n 'nickname' -i <cert>
