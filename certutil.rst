@@ -1,3 +1,8 @@
+Create new security database::
+
+  mkdir ~/.pki/nssdb
+  certutil -d ~/.pki/nssdb -N
+
 List certificates in database::
 
   certutil -d ~/.pki/nssdb -L
