@@ -1,7 +1,7 @@
 Networking
 ==========
 
-- network interface configs at /etc/sysutils/network-scripts/if-XXX
+- network interface configs at /etc/sysconfig/network-scripts/if-XXX
 - remove the ``mdns [NOTFOUND=return]`` from hosts line in
   ``nsswitch.conf`` to resolve ``.local`` via dns.
 
