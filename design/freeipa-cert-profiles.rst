@@ -132,13 +132,13 @@ Modify command to add ``--profile <profileId>`` argument.
 Configuration
 -------------
 
-There is no specific configuration required to enable the user of
-profiles.  Profiles themselves may be enabled and disabled
-separately (and are enabled upon creation).
+There is no specific configuration in FreeIPA to enable profiles.
+Profiles themselves may be enabled and disabled separately (and get
+enabled automatically upon import).
 
-Essential profiles will be added and enabled on server installation.
-A number of other "pre-canned" profiles could be created and made
-available.
+Essential profiles (if any beyond the default set in Dogtag) will be
+added and enabled on server installation.  Other "pre-canned"
+profiles can be introduced by FreeIPA in the future, as required.
 
 
 Upgrade
@@ -147,11 +147,31 @@ Upgrade
 The upgrade process ensure that essential and other "pre-canned"
 profiles are installed and enabled.
 
-Dogtag instances should be upgraded to use LDAP-based profiles, so
-that they are replicated.  This might need to be a manual upgrade
-task in case of inconsistent profiles between Dogtag instances in a
-replicated environment, or because the administrator may have
-already enabled LDAP profile replication in Dogtag.
+Dogtag instances must be configured to use LDAP-based profiles, so
+that they are replicated.  This involves setting
+``subsystem.1.class=com.netscape.cmscore.profile.LDAPProfileSubsystem``
+in Dogtag's ``CS.cfg`` and importing profiles.
+
+
+Handling inconsistent profiles
+------------------------------
+
+**FEEDBACK REQUIRED**
+
+File-based profiles could be (but should not be) inconsistent
+between replica.
+
+This might need to be a manual upgrade task in case of inconsistent
+profiles between Dogtag instances in a replicated environment, or
+because the administrator may have already enabled LDAP profile
+replication in Dogtag.
+
+Alternatively, we take a "first upgrade wins" approach - whichever
+replica is upgraded first, its profiles are imported.  On other
+replica, the presence of LDAP profiles is detected and no import is
+performed.  This behaviour must be clearly explained and
+administrators who have custom profiles encouraged to check for
+inconsistencies prior to upgrade.
 
 
 How to Test
