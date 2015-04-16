@@ -169,14 +169,15 @@ state (e.g. profile deletion).
 Searching for certificates by profile
 -------------------------------------
 
-**TODO**
+**FEEDBACK REQUIRED**
 
 Investigate options for exposing or finding out from Dogtag what
 profile a certificate was issued under.  Investigate also search by
 profile (not as important).
 
-This could also be tracked on the FreeIPA side (the profile ID that
-was used can be stored along the issued certificate).
+Alternatively, this could be tracked on the FreeIPA side.  The
+profile ID that was used can be stored along with the issued
+certificate.
 
 
 Implementation
@@ -190,7 +191,34 @@ Feature Management
 UI
 --
 
-**TODO**
+Profile management UI
+^^^^^^^^^^^^^^^^^^^^^
+
+A grid UI shall be provided that lists profiles and their important
+attributes (description, enabled/disabled status, etc).  Actions to
+enable/disable a profile, delete a profile, or download a profile's
+full content will be provided.
+
+A profile import dialog will allow an administrator to paste profile
+content and import it into Dogtag.
+
+
+Certificate management UI
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are existing UI elements for requesting a certificate for, and
+displaying the certificate issued to a service principal.  These
+aspects of the UI must be enhanced to support multiple certificates.
+
+For certificate requests, a drop-down list of profiles will be
+suitable for selecting a profile.
+
+For viewing certificates, a list of certificates should be
+presented.  Each should identify the profile that was used to issue
+that certificate, and perhaps other important information such as a
+certificate fingerprint.  Upon selecting a certificate the existing
+dialog showing the Base-64 encoded certificate and providing options
+for renewal or revocation will be shown.
 
 
 CLI
