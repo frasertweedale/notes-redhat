@@ -65,6 +65,107 @@ tutorials and improved documentation in Dogtag for how to define
 certificate profiles.
 
 
+Profile formats
+---------------
+
+There are two profile formats used by Dogtag: an XML representation,
+and the "raw" property list format which is also (at the current
+time) the internal storage format.  Initial work will focus on the
+raw format, but it should be simple to distinguish between and
+support both formats.
+
+
+Listing profiles
+----------------
+
+The list of all Dogtag profiles is retrieved via the Dogtag REST
+API::
+
+  GET /ca/rest/profiles
+
+
+Profile import
+--------------
+
+(This section is about importing new profiles individually.  For
+initial import of profiles during installation or upgrade, see the
+**Configuration** and **Upgrade** sections.)
+
+New profiles can be imported via CLI (specify profile filename) or
+Web UI (paste file content).  Interactive "profile builder"
+functionality is a future feature (see Dogtag ticket `#1331`_.)
+
+.. _#1331: https://fedorahosted.org/pki/ticket/1331
+
+Having obtained the profile content, FreeIPA will import import the
+profile into Dogtag using the Dogtag REST API::
+
+  PUT /ca/rest/profiles/<profileId>       (XML format)
+  PUT /ca/rest/profiles/<profileId>/raw   (raw format)
+
+Failure modes:
+
+- Profile ID already in use
+- Bad profile content
+
+
+Retrieve profile
+----------------
+
+Profile data can be retrieved from Dogtag using the REST API::
+
+  GET /ca/rest/profiles/<profileId>       (XML format)
+  GET /ca/rest/profiles/<profileId>/raw   (XML format)
+
+The XML or property list (whatever is used) can be parsed to
+determine name, enabled/disabled state, and other data.  It is not
+an initial requirement that FreeIPA provide a detailed breakdown of
+the profile (inputs, policy constraints and defaults, etc), but the
+basic information should be available.
+
+Failure modes:
+
+- Profile ID unknown
+
+
+Delete profile
+--------------
+
+Profiles can be deleted from Dogtag using the REST API::
+
+  DELETE /ca/rest/profiles/<profileId>
+
+Failure modes:
+
+- Profile ID unknown
+- Profile enabled (profiles must be disabled before deletion)
+
+**FEEDBACK REQUIRED** If a profile is enabled and a FreeIPA admin
+attempts to delete it should we disable then delete it, or fail?
+
+
+Enable/disable profile
+----------------------
+
+Enabling or disabling a profile in Dogtag is accomplished via the
+REST API::
+
+  POST /ca/rest/profiles/<profileId>?action=enable
+  POST /ca/rest/profiles/<profileId>?action=disable
+
+Failure modes:
+
+- Profile ID unknown
+- Profile already enabled/disabled
+
+It may be useful to record the enabled/disabled state of a profile
+in the FreeIPA directory, so that the state is visible and decisions
+can be made based on the profile state without requiring a
+round-trip to Dogtag to find out and to avoid blind attempts of
+operations that could fail according to profile enabled/disabled
+state (e.g. profile deletion).
+
+
 Searching for certificates by profile
 -------------------------------------
 
@@ -73,6 +174,9 @@ Searching for certificates by profile
 Investigate options for exposing or finding out from Dogtag what
 profile a certificate was issued under.  Investigate also search by
 profile (not as important).
+
+This could also be tracked on the FreeIPA side (the profile ID that
+was used can be stored along the issued certificate).
 
 
 Implementation
