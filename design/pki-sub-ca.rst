@@ -264,89 +264,43 @@ wish.
 Key replication service
 '''''''''''''''''''''''
 
-A small service will be written to facilitiate distribution of new
-signing keys to replica.  This service will be a dependency of
-Dogtag as well as other projects.  It will not be part of FreeIPA
-itself, becaues Dogtag cannot depend on FreeIPA.
+Initial requirements:
 
-The plan as it currently stands:
+- Sub-CA signing keys must be propagated from the security
+  database of the clone on which the key was generated, to
+  the security databases of other clones.
 
-- Prototype in python; nail down the API
-- From the prototype, formally specify the protocol
-- Implementations can then be written in other languages as needed
-- Investigate options for pluggable authorization
+- Keys must be installed with the same nickname.
 
-If the key replication service is a "pull" mechanism, replicas must
+- Only keys matching certain criteria (they are sub-CA
+  signing keys) shall be replicated.  For example, new subsystem
+  keys must not be replicated.
+
+Future requirements:
+
+- Once OCSP signing delegation is supported for sub-CAs, sub-CAs'
+  OCSP signing keys must also be transferred.
+
+- Provide a convenient way for administrators to perform key
+  distribution themselves if they are unwilling or unable to use
+  Custodia.
+
+As the *initial* release of sub-CAs will be exclusively to support
+the FreeIPA use case and not supported otherwise, it is acceptable
+in the short term for FreeIPA to provide the replication
+functionality.
+
+The Custodia_ program will be used to perform key replication.
+Futher details of Custodia's design and use are found in the
+`Replica Promotion design proposal`_.
+
+.. _Replica Promotion design proposal: https://www.freeipa.org/page/V4/Replica_Promotion#Sharing_Secrets_Securely
+
+If the key replication service is a "pull" mechanism, clones must
 request the key as soon as they are aware of the creation of a new
-sub-CA.
+sub-CA (e.g. by way of LDAP persistent search or polling).
 
-We should provide a convenient way for users to manage key
-distribution themselves if they do not want to, or cannot run the
-key replication service.  This could be scoped for later work.
-
-
-Ade's suggestion
-''''''''''''''''
-
-1. We create a new service on the CA for the distribution of subCA
-signing keys.  This service may be disabled by a configuration setting
-on the CA.  Whether it should be disabled by default is open to debate.
-
-2. SubCA detects (through ldap) that a subCA has been added.  It sends a
-request for the CA signing key, including the identifier for the subCA
-and half of a session key (wrapped with the subsystem public key).
-Recall that the subsystem key is shared between clones and is the key
-used to inter-communicate between dogtag subsystems.
-
-3. The service on the master CA generates the other half of a session
-key and wraps that with the subsystem public key.  It also sends back
-the subCA signing key wrapped with the complete session key.
-
-There are lots of variations of the above, but they all rely on the fact
-that the master and clones share the same subsystem cert - which was
-originally transported to the clone manually via p12 file.
-
-The subsystem certificate is stored in the same cert DB as the signing
-cert, so if it is compromised, most likely the CA signing cert is
-compromised too.
-
-Christina's suggestion
-''''''''''''''''''''''
-
-(A refinement of the above proposal.)
-
-* A subCA is created on CA0
-
-* CA1 and CA2 realized it, each sends CA0 a "get new subCA signing
-  cert/keys" request, maybe along with each of their transport cert.
-
-* CA0 (after ssl auth) do the "agent" authz check
-
-* once auth/authz passed, CA0 generates a session key, use it to
-  wrap its priv key, and wrap the session key with the corresponding
-  transport cert in the request , Send them along with CA0's signing
-  cert back to the caller in response. (see additional layers of
-  security measurement below)
-
-* CA1 and CA2 each receives its respective wrapped session key and
-  the wrapped CA signing key and the CA cert, do the unwrapping onto
-  the token, etc.
-
-We also want to make sure the transport certs passed in by the
-caller are valid ones.
-
-One way to do it is to have Security Domain come into play.  The SD
-is supposed to have knowledge of all the subsystems within its
-domain.  Could we add something in there to track which ones are
-clones of one another?  Could we maybe also "register" each clone's
-transport certs there as well.  If we have such info at hand from
-the SD, then the "master of the moment" could look up and verify the
-cert.
-
-Also, one extra step that can be taken is to generate a nonce
-encrypted with the transport cert and receive it back encrypted with
-the "master of the moment"s own transport cert to ensure that the
-caller indeed has the transport cert/keys.
+.. _custodia: https://github.com/simo5/custodia
 
 
 Sub-CA objects and initialisation
@@ -1099,3 +1053,70 @@ It was further argued that in light of these risks, Dogtag's
 reputation as a secure system would be undermined by the presence of
 a signing key transport feature that worked in this way, even if was
 optional and disabled by default.
+
+
+Archived designs: key replication suggestions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ade's suggestion
+''''''''''''''''
+
+1. We create a new service on the CA for the distribution of subCA
+signing keys.  This service may be disabled by a configuration setting
+on the CA.  Whether it should be disabled by default is open to debate.
+
+2. SubCA detects (through ldap) that a subCA has been added.  It sends a
+request for the CA signing key, including the identifier for the subCA
+and half of a session key (wrapped with the subsystem public key).
+Recall that the subsystem key is shared between clones and is the key
+used to inter-communicate between dogtag subsystems.
+
+3. The service on the master CA generates the other half of a session
+key and wraps that with the subsystem public key.  It also sends back
+the subCA signing key wrapped with the complete session key.
+
+There are lots of variations of the above, but they all rely on the fact
+that the master and clones share the same subsystem cert - which was
+originally transported to the clone manually via p12 file.
+
+The subsystem certificate is stored in the same cert DB as the signing
+cert, so if it is compromised, most likely the CA signing cert is
+compromised too.
+
+Christina's suggestion
+''''''''''''''''''''''
+
+(A refinement of the above proposal.)
+
+* A subCA is created on CA0
+
+* CA1 and CA2 realized it, each sends CA0 a "get new subCA signing
+  cert/keys" request, maybe along with each of their transport cert.
+
+* CA0 (after ssl auth) do the "agent" authz check
+
+* once auth/authz passed, CA0 generates a session key, use it to
+  wrap its priv key, and wrap the session key with the corresponding
+  transport cert in the request , Send them along with CA0's signing
+  cert back to the caller in response. (see additional layers of
+  security measurement below)
+
+* CA1 and CA2 each receives its respective wrapped session key and
+  the wrapped CA signing key and the CA cert, do the unwrapping onto
+  the token, etc.
+
+We also want to make sure the transport certs passed in by the
+caller are valid ones.
+
+One way to do it is to have Security Domain come into play.  The SD
+is supposed to have knowledge of all the subsystems within its
+domain.  Could we add something in there to track which ones are
+clones of one another?  Could we maybe also "register" each clone's
+transport certs there as well.  If we have such info at hand from
+the SD, then the "master of the moment" could look up and verify the
+cert.
+
+Also, one extra step that can be taken is to generate a nonce
+encrypted with the transport cert and receive it back encrypted with
+the "master of the moment"s own transport cert to ensure that the
+caller indeed has the transport cert/keys.
