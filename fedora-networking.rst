@@ -5,6 +5,16 @@ Networking
 - remove the ``mdns [NOTFOUND=return]`` from hosts line in
   ``nsswitch.conf`` to resolve ``.local`` via dns.
 
+DHCP
+----
+
+DHCP server might dish out different IP addresses to the same
+machine if the client ID is not based on the MAC address.  To
+remedy::
+
+    $ echo "send dhcp-client-identifier = hardware;" >> /etc/dhcp/dhclient.conf
+
+
 Firewall
 --------
 
