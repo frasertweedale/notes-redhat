@@ -1,9 +1,21 @@
 Networking
 ==========
 
-- network interface configs at /etc/sysconfig/network-scripts/if-XXX
-- remove the ``mdns [NOTFOUND=return]`` from hosts line in
-  ``nsswitch.conf`` to resolve ``.local`` via dns.
+DNS
+---
+
+Network interface configs live at
+``/etc/sysconfig/network-scripts/if-XXX``.
+
+To force ``.local`` resolution to DNS remove ``mdns
+[NOTFOUND=return]`` from hosts line in ``nsswitch.conf``.
+
+To tell NetworkManager to never touch ``/etc/resolv.conf``, in
+``/etc/NetworkManager/NetworkManager.conf`` put::
+
+  [main]
+  dns=none
+
 
 DHCP
 ----
