@@ -12,6 +12,14 @@ To erase packages machine some pattern::
 
   yum list installed |grep GIT | cut -d ' ' -f 1 | xargs sudo yum erase -y
 
+Prevent update of a package::
+
+  $ yum install -y yum-plugin-versionlock
+  $ echo tomcat-7.0.54-3.fc21.noarch \
+    >> /etc/yum/pluginconf.d/versionlock.list
+
+(The full package name is required; use `rpm -qa` to find it.)
+
 
 Building RPMs
 -------------
