@@ -29,6 +29,26 @@ Interesting targets:
 - pki-tools-classes
 
 
+Spawning
+========
+
+Minimal ``pkispawn(8)`` configuration file::
+
+  [DEFAULT]
+  pki_admin_password=4me2Test
+  pki_client_database_password=4me2Test
+  pki_client_pkcs12_password=4me2Test
+  pki_ds_password=4me2Test
+
+  [CA]
+  pki_profiles_in_ldap=True
+  pki_ca_signing_subject_dn=cn=CA Signing Certificate 201504231331
+
+Spawn an instance::
+
+  $ pkispawn -s CA -f my.conf
+
+
 CLI tools
 =========
 
