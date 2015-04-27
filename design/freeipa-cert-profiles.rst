@@ -8,7 +8,12 @@
   work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
 
 {{Admon/important|Work in progress|This design is not complete yet.}}
-{{Feature|version=4.2.0|ticket=57|ticket2=4002|ticket3=2915|ticket4=4938}}
+{{Feature|version=4.2.0|ticket=57|ticket2=4002|ticket3=2915|ticket4=4938|author=Ftweedal}}
+
+
+*********
+DELETE ME
+*********
 
 
 Overview
@@ -42,8 +47,8 @@ DNP3 SAv5
 
 The DNP3 Secure Authentication version 5 (SAv5) standard uses the
 IEC 62351-8 certificate authentication to carry authorization data
-for the DNP3 smart-grid technology.  A custom certificate profile
-would be needed to use this.
+for the DNP3 smart-grid technology.  A specialised certificate
+profile would be needed to support DNP3.
 
 
 Design
@@ -65,8 +70,28 @@ tutorials and improved documentation in Dogtag for how to define
 certificate profiles.
 
 
-Profile formats
+Terminology
+-----------
+
+*included profile*
+  Any profile that is shipped as part of FreeIPA and available in a
+  default installation.
+
+*custom profile*
+  Any profile that has been imported by an administrator.
+
+
+Profile backend
 ---------------
+
+A new backend will be implemented to provide the profile management
+behaviours while abstracting the Dogtag integration.  The profile
+management *plugin* shall invoke the profile backend to do the work
+of communicating with Dogtag.
+
+
+Profile formats
+^^^^^^^^^^^^^^^
 
 There are two profile formats used by Dogtag: an XML representation,
 and the "raw" property list format which is also (at the current
@@ -76,7 +101,7 @@ support both formats.
 
 
 Listing profiles
-----------------
+^^^^^^^^^^^^^^^^
 
 The list of all Dogtag profiles is retrieved via the Dogtag REST
 API::
@@ -85,7 +110,7 @@ API::
 
 
 Profile import
---------------
+^^^^^^^^^^^^^^
 
 (This section is about importing new profiles individually.  For
 initial import of profiles during installation or upgrade, see the
@@ -110,12 +135,12 @@ Failure modes:
 
 
 Retrieve profile
-----------------
+^^^^^^^^^^^^^^^^
 
 Profile data can be retrieved from Dogtag using the REST API::
 
   GET /ca/rest/profiles/<profileId>       (XML format)
-  GET /ca/rest/profiles/<profileId>/raw   (XML format)
+  GET /ca/rest/profiles/<profileId>/raw   (raw format)
 
 The XML or property list (whatever is used) can be parsed to
 determine name, enabled/disabled state, and other data.  It is not
@@ -129,7 +154,7 @@ Failure modes:
 
 
 Delete profile
---------------
+^^^^^^^^^^^^^^
 
 Profiles can be deleted from Dogtag using the REST API::
 
@@ -140,12 +165,12 @@ Failure modes:
 - Profile ID unknown
 - Profile enabled (profiles must be disabled before deletion)
 
-**FEEDBACK REQUIRED** If a profile is enabled and a FreeIPA admin
-attempts to delete it should we disable then delete it, or fail?
+If a profile is enabled and a FreeIPA admin attempts to delete it,
+we shall raise ``StillActive`` or a similar exception.
 
 
 Enable/disable profile
-----------------------
+^^^^^^^^^^^^^^^^^^^^^^
 
 Enabling or disabling a profile in Dogtag is accomplished via the
 REST API::
@@ -166,23 +191,65 @@ operations that could fail according to profile enabled/disabled
 state (e.g. profile deletion).
 
 
-Searching for certificates by profile
--------------------------------------
+Storing issued certificates
+---------------------------
 
-**FEEDBACK REQUIRED**
+Support for multiple profiles means that principals (including user
+principals) can now have *multiple certificates*.  The proposed
+schema and implications are discussed in the `V4/User Certificates`_
+design page.
 
-Investigate options for exposing or finding out from Dogtag what
-profile a certificate was issued under.  Investigate also search by
-profile (not as important).
+.. _V4/User Certificates: http://www.freeipa.org/page/V4/User_Certificates
 
-Alternatively, this could be tracked on the FreeIPA side.  The
-profile ID that was used can be stored along with the issued
-certificate.
+The FreeIPA data about a profile will include a setting that
+says whether it will, after the certificate is issued:
+
+- Stored the full certificate in the `userCertificate` attribute,
+  and store metadata attributes (hash, issuer, serial, etc); or
+
+- Store *only* the metadata attributes; or
+
+- Store nothing at all (intended for short-lived certificates).
+
+The `cert-request` command will be updated to act according to this
+configuration for the requested profile.
+
+If a profile is configured to store issued certificates or
+certificate metadata in the requesting principal's entry, the
+profile ID **should** be recorded as a certificate metadata
+attribute to allow filtering or sorting certificates by profile.
+
+
+Schema
+------
+
+FreeIPA will store data about the certificate profiles that are
+managed via FreeIPA (including the *included profiles*).  This
+will:
+
+- enable fast query of which profiles are available for FreeIPA
+  principals to use (Dogtag does not have to be contacted);
+
+- allow storage of additional profile-related configuration that is
+  specific to FreeIPA;
+
+- avoid exposing all of the profiles available in Dogtag to FreeIPA
+  (only those managed by FreeIPA will be visible to FreeIPA users);
+
+The data stored for each profile are:
+
+- Profile ID (used by Dogtag)
+- Profile summary (short description)
+- Profile certificate storage configuration (explained above)
+
+Certificate profile entries will be stored under a new DN:
+``cn=certprofiles,cn=etc,$SUFFIX``.
+
+**TODO** schema detail
 
 
 Implementation
 ==============
-
 
 
 Feature Management
@@ -245,6 +312,15 @@ using the profile while it is disabled.
 
 (Re)enable the profile.
 
+``ipa certprofile-mod <profileId>``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+User needs to be able to edit the profile, especially the policy for
+the ``userCertificate`` behavior.  See `User Certificates -
+Configuration Section`_.
+
+.. _User Certificates - Configuration Section: http://www.freeipa.org/page/V4/User_Certificates#Configuration
+
 ``ipa certprofile-del <profileId>``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -256,9 +332,18 @@ or CLI) this case will have to be handled.
 
 
 ``ipa cert-request``
-'''''''''''''''''''''
+^^^^^^^^^^^^^^^^^^^^
 
-Modify command to add ``--profile <profileId>`` argument.
+Modify command to add ``--profile <profileId>`` argument to specify
+which profile to use.  If not given, the default
+``caIPAserviceCert`` profile will be used.
+
+
+``ipa cert-find``
+^^^^^^^^^^^^^^^^^
+
+Add the ``--profile <profileId>`` option to search for certificates
+that were issued using the specified profile.
 
 
 Configuration
@@ -283,6 +368,15 @@ Dogtag instances must be configured to use LDAP-based profiles, so
 that they are replicated.  This involves setting
 ``subsystem.1.class=com.netscape.cmscore.profile.LDAPProfileSubsystem``
 in Dogtag's ``CS.cfg`` and importing profiles.
+
+
+Upgrading default profiles
+--------------------------
+
+If an *included profile* (i.e., a profile supplied by FreeIPA) needs
+to be updated, an upgrade script can call invoke the profile backend
+to update it.  Any changes to the behaviour of included profiles
+should be adequately documented in release notes.
 
 
 Handling inconsistent profiles
@@ -333,14 +427,3 @@ Dependencies
 ============
 
 - Dogtag with LDAP profile replication enabled.
-
-
-Author
-======
-
-Fraser Tweedale
-
-Email
-  ftweedal@redhat.com
-IRC
-  ftweedal
