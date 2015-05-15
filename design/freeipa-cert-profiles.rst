@@ -55,9 +55,9 @@ Design
 ======
 
 Profiles will be stored in Dogtag.  A small amount of metadata will
-be stored in FreeIPA's directory to track these profiles, store
-their current state (enabled, disabled) and mapping to groups that
-are allowed to use the profile.
+be stored in FreeIPA's directory to track these profiles, provide a
+description and store whether certificates issued using the profile
+will be stored in the FreeIPA directory.
 
 IPA must be modified to respect the profile parameter in requests
 from Certmonger (currently ignored).
@@ -204,20 +204,21 @@ design page.
 The FreeIPA data about a profile will include a setting that
 says whether it will, after the certificate is issued:
 
-- Stored the full certificate in the `userCertificate` attribute,
-  and store metadata attributes (hash, issuer, serial, etc); or
-
-- Store *only* the metadata attributes; or
+- Stored the full certificate in the `userCertificate` attribute; or
 
 - Store nothing at all (intended for short-lived certificates).
 
 The `cert-request` command will be updated to act according to this
 configuration for the requested profile.
 
-If a profile is configured to store issued certificates or
-certificate metadata in the requesting principal's entry, the
-profile ID **should** be recorded as a certificate metadata
-attribute to allow filtering or sorting certificates by profile.
+
+Enabling or disabling profiles
+------------------------------
+
+IPA will not provide a direct way to enable or disable profiles in
+Dogtag.  Separate CA ACL rules will govern whether a principal can
+use a particular profile, and these rules can be disabled or enabled
+by privileged users.
 
 
 Schema
@@ -245,12 +246,25 @@ The data stored for each profile are:
 Certificate profile entries will be stored under a new DN:
 ``cn=certprofiles,cn=etc,$SUFFIX``.
 
-**TODO** schema detail
+Schema::
+
+  dn: cn=schema
+  attributeTypes: ( 2.16.840.1.113730.3.8.19.1.1
+    NAME 'ipaCertProfileStoreIssued'
+    DESC 'Store certificates issued using this profile'
+    EQUALITY booleanMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.7
+    SINGLE-VALUE
+    X-ORIGIN 'IPA v4.2' )
+  objectClasses: ( 2.16.840.1.113730.3.8.19.2.1
+    NAME 'ipaCertProfile'
+    SUP top
+    STRUCTURAL MUST ( cn $ description $ ipaCertProfileStoreIssued )
+    X-ORIGIN 'IPA v4.2' )
 
 
 Implementation
 ==============
-
 
 Feature Management
 ==================
@@ -291,59 +305,77 @@ for renewal or revocation will be shown.
 CLI
 ---
 
-``ipa certprofile-import <profileId> <filename>``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``ipa certprofile-import ID [options]``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Add a profile to FreeIPA and Dogtag.  Profiles will be enabled by
 default.
 
-The ``ipa cert-request`` command has a filename argument (for the
-CSR).  We could do what it does (although I am told it is a bit of a
-hack).
+Options:
 
-``ipa certprofile-disable <profileId>``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``--desc=STR``
+  Brief description of this profile
+``--store=BOOL``
+  Whether to store certs issued using this profile
+``--file=FILE``
+  Name of file containing profile data (Dogtag raw format)
 
-Disable the profile.  FreeIPA will prevent certificate issuance
-using the profile while it is disabled.
 
-``ipa certprofile-enable <profileId>``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``ipa certprofile-mod ID [options]``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-(Re)enable the profile.
+``--desc=STR``
+  Edit the description
+``--store=BOOL``
+  Edit the "store issued certificates" policy for this profile
+``--file=FILE``
+  Name of file containing profile data (Dogtag raw format) with
+  which to update Dogtag.
 
-``ipa certprofile-mod <profileId>``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-User needs to be able to edit the profile, especially the policy for
-the ``userCertificate`` behavior.  See `User Certificates -
-Configuration Section`_.
+``ipa certprofile-del ID``
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. _User Certificates - Configuration Section: http://www.freeipa.org/page/V4/User_Certificates#Configuration
+Delete the specified profile.  This command will disable the profile
+in Dogtag prior to deletion.
 
-``ipa certprofile-del <profileId>``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Certificates issued using the profile will be kept around; no
+special action is taken in this regard.
 
-Delete the profile.  Certificates issued using the profile will
-still be hanging around, but if we store references to the profile
-that was used to issue a certificate, those will become danging
-references, and if we expose that information to users (e.g. via UI
-or CLI) this case will have to be handled.
+
+``ipa certprofile-find [CRITERIA] [options]``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Search for Certificate Profiles.
+
+``--id=STR``
+  Profile ID
+``--desc=STR``
+  Brief description of the profile
+``--store=BOOL``
+  Search for profiles with the given store-issued setting.
+
+Case insensitive substring or keyword match on the description is
+desirable, to aid users in locating the right profile for a
+particular purpose.
+
+
+``ipa certprofile-show ID [options]``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Display the properties of a Certificate Profile.
+
+``--output=FILE``
+  Write the Dogtag profile data (Dogtag raw format) to the named
+  file.
 
 
 ``ipa cert-request``
 ^^^^^^^^^^^^^^^^^^^^
 
-Modify command to add ``--profile <profileId>`` argument to specify
-which profile to use.  If not given, the default
-``caIPAserviceCert`` profile will be used.
-
-
-``ipa cert-find``
-^^^^^^^^^^^^^^^^^
-
-Add the ``--profile <profileId>`` option to search for certificates
-that were issued using the specified profile.
+Modify command to add ``--profile ID`` argument to specify which
+profile to use.  If not given, the default ``caIPAserviceCert``
+profile will be used.
 
 
 Configuration
