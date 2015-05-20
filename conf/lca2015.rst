@@ -1,0 +1,230 @@
+Last week I was at linux.conf.au 2015 in Auckland.  I presented two
+talks, on one property-based testing at the testing and automation
+miniconf, and a FreeIPA talk.  I also attended many interesting
+talks - details of some of these are below and at [1] - and had many
+fruitful conversations with people explaining and answering
+questions about FreeIPA.
+
+Not only developers but many sysadmins attend LCA, and there was a
+lot of interest in FreeIPA.  I hope to use this momentum and submit
+a more in-depth tutorial proposal for next year.  I also have some
+questions about parts of FreeIPA I need to learn more about.  Read
+on below for more info!
+
+Briefly, in other Red Hat projects, there were some presentations
+and a bit of buzz about Project Atomic and about OpenShift v3 (based
+on Docker and Kubernetes), which was nice to see.
+
+[1] https://github.com/frasertweedale/notes-conf/tree/master/lca2015
+
+
+My FreeIPA talk
+===============
+
+https://www.youtube.com/watch?v=PZXsNt2_Ie8
+
+The FreeIPA talk was in one of the smaller theatres (75 seats) but
+they should have scheduled it for a larger room because it was
+completely filled and unfortunately a few people were turned away.
+
+The popularity of the FreeIPA talk was probably helped by some
+shout-outs in earlier talks.  *Advanced Linux server-side threats*
+plugged FreeIPA's OTP support useful defensive measure.  *Stories
+from the Samba 3 -> 4 transision* endorsed FreeIPA for managing
+Linux/UNIX domains.
+
+Given the popularity of the session, I will proposing a FreeIPA
+tutorial for linux.conf.au 2016.  Tutorial sessions are usually 1.5
+hours so it is enough time to install server and enroll clients,
+Kerberize web services, configure OTP and maybe define custom
+attributes or other activities.  There is no hurry to start planning
+the proposal (CfP is six months away) but if anyone has run
+something similar, could you share your advice or materials?
+
+
+Questions people had:
+
+- Does FreeIPA have mechanism to detect if there are duplicate users
+  in AD and FreeIPA?
+
+  - I answered "no" but that writing a script to check for
+    duplicates would not be difficult.
+
+- I obviously confused someone when I was talking about features for
+  RHEL 7.1 because they asked why wasn't it in RHEL.  But I cleared
+  that up.
+
+- Custom LDAP attributes?
+
+  - I should make it clear that this is doable and include
+    a pointer to the HOWTO in my slides (or at least mention it)
+
+- Migration?
+
+  - Again I should method this.  Perhaps a slides about what we
+    offer for *migrating* to freeipa.
+
+- There was question about delegation of the domain administration
+  such that delegates can only manage identities belonging to
+  particular groups or OUs.  I wasn't sure on that, and directed the
+  questioner to the mailing list.  Can someone speak to this?
+
+- "A lot of our developers run Macs. Has any of this been tested
+  with OS X?"  I answered that I wasn't sure whether people had done
+  this but given that OS X is Unix, even if it is not possible today
+  it would probably not be much effort for basic support.
+
+- One gentleman asked about Windows Group Policy and whether FreeIPA
+  can interpret it.  I didn't really understand the question but
+  suggested he ask on freeipa-users.
+
+- "We can have Linux clients as clients of AD so what's the benefit
+  of putting FreeIPA into the mix?"
+
+  I answered that the advantage is that groups can manage the
+  identites they are responsible for in the way that makes sense for
+  them, according to the OS/platform they are using, and then having
+  interoperability between the domains.
+
+  But he responded that their AD admins were happy managing Unix
+  servers so it didn't make sense for them to add FreeIPA to the
+  mix.  I thought "OK fair enough then."  Is there any compelling
+  argument for FreeIPA in this situation?
+
+
+Other comments:
+
+- People are excited about CAMMAC/AI and the policies that will
+  enable.  And want to know when they can have it :)
+
+- People asked about user certificates.  In particular, one
+  administrator wants to provision code signing certificates for
+  users.  I explained that full support in FreeIPA was coming later
+  with profile management and (ideally) sub-CAs for a separate
+  security domain, but that if it is needed today Dogtag can be used
+  directly.
+
+- Some people wondered about whether there is duplication of effort
+  between Samba and FreeIPA efforts.  I wasn't aware of how similar
+  some of recent goals and development of Samba 4 is, compared to
+  FreeIPA.  The main difference seems to be that Samba is pursuing
+  full support for Windows clients where FreeIPA is focusing on
+  Linux clients and AD interop via trusts.
+
+  A lot of the behaviour - configure a DS, Kerberos, DNS, etc - is
+  the same stuff, so concern about duplicated effort is
+  understandable.  But the components are mostly different, even
+  down to Kerberos (Samba DC is using Heimdal).  So I don't know
+  what could be done to improve the situation, short of FreeIPA
+  adding full support for Windows clients, group policy, etc,
+  presumably via Samba somehow.  Maybe there are technical or
+  strategic reasons against this possibility.  I would be interested
+  to hear others' comments - from people who understand the Samba
+  project better or have been around longer than I.
+
+- I have a few people to follow up with about discussions we had /
+  FreeIPA use cases for their clients or organisations.  In
+  particular, one person was interested in hosting FreeIPA instances
+  for customers; we only had a brief discussion so I will ask in
+  more detail about use cases and explore solutions that could be
+  feasible.  Dmitri, I will copy you when I email him, probably
+  tomorrow.
+
+
+Other talks
+===========
+
+Keynote - Bob Young
+-------------------
+
+https://www.youtube.com/watch?v=Tvxs2hkhZq0
+
+Bob Young spoke about commercialising innovation, Red Hat's
+strategic advantage in giving customers control over technology,
+software licensing, the free market and regulation.
+
+
+Stories from the Samba 3 -> Samba 4 transition
+----------------------------------------------
+
+https://www.youtube.com/watch?v=r6Cp-4p0jj4
+
+Andrew Bartlett on the Samba 4 AD DC goals, accomplishments and
+migration nightmares.  It seems to be solving a lot of the same
+problems as FreeIPA (easy setup, secure by default, sensible default
+policies) but for an AD domain.  Andrew also briefly plugs FreeIPA,
+outlining this difference.
+
+
+Advanced Linux Server-side Threats
+----------------------------------
+
+https://www.youtube.com/watch?v=L9tjcB_ij-0
+
+A look at some advanced Linux/UNIX malware, how it spreads, infects
+and avoids detection.  Covered incident response and defense towards
+the end of the talk.  FreeIPA 2FA got a shout-out.
+
+I spoke with the present Olivier Bilodeau who was keen to learn more
+about FreeIPA's OTP support and I directed him to my blog post on
+the design.
+
+
+Crypto won't save you either
+----------------------------
+
+https://www.youtube.com/watch?v=_ahcUuNO4so
+
+An overview of many different ways crypto has been bypassed.
+Emphasised that security issues are almost always implementation
+issues.  Presenter also expresses concern about NSA influence over
+standards and corporations, e.g. NIST curves, RSA Dual_EC_DRBG
+controversy, and about standards standing in the way of fixing /
+disabling old or broken crypto, e.g. FIPS 140.
+
+
+OneRNG
+------
+
+https://www.youtube.com/watch?v=jiy1rlKdBo8
+
+Low cost, Kickstarter-backed open hardware entropy device with open
+source drivers.  Designed for verifiability.
+
+I asked if they would follow up the OneRNG with "OneHSM" but they
+said they had other projects.
+
+
+When your codebase is nearly old enough to vote
+-----------------------------------------------
+
+https://www.youtube.com/watch?v=G45hqWNScvE
+
+A look at advantages and disadvantages, and other important factors
+when considering whether to rewrite [parts of] old codebases.  The
+talk was based on a service with users rather than software
+distributed to users, but a lot of the factors would be relevant to
+our codebases as well.
+
+
+Gerrit and Gertty - a daily habit
+---------------------------------
+
+https://www.youtube.com/watch?v=Rp317mfo3Qg
+
+A talk about code review tools that was really a talk about
+techniques for habit formation.  Some really good advice in here.
+
+Gerrit is nice - I have used it at previous jobs - but it wasn't
+really the focus of the talk.
+
+
+Security Development Lifecycle: theory and techniques
+-----------------------------------------------------
+
+https://www.youtube.com/watch?v=kGewMn5ff1g
+
+Discredits traditional assumptions about security of open source
+software and recommends developer education, Security Development
+Lifecycle (esp. threat modelling and ranking and static code
+analysis), strong project security teams, easy software updates.
