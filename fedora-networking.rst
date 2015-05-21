@@ -49,3 +49,13 @@ time the service starts.
 Open ports for a service in the default zone::
 
   $ sudo firewall-cmd --add-service=dns [--permanent]
+
+
+Wifi
+----
+
+If Intel wireless device drops the ball, unload and reload kernel
+module::
+
+    $ sudo rmmod iwlmvm && sudo rmmod iwlwifi
+    $ sudo modprobe iwlwifi
