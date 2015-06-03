@@ -48,14 +48,28 @@ and ``fedpkg install`` will install a locally-built RPM.
 
 
 COPR
-----
+====
 
 *Cool Other Package Repositories*.
+
+Enabling a COPR
+---------------
 
 ::
 
   sudo yum install -y dnf-plugins-core
   sudo dnf copr enable -y mkosek/freeipa
+
+Setting up a COPR
+-----------------
+
+To build packages, upload the SRPM(s) somewhere, go to **New Build**,
+paste the package URL(s) and **Build**.
+
+To enable the updates-testing repo for builds, add to the
+repository list::
+
+  ``http://download.fedoraproject.org/pub/fedora/linux/updates/testing/$releasever/$basearch/``
 
 
 Becoming a Fedora packager
