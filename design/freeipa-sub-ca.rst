@@ -4,14 +4,6 @@
   certificate renewal for sub-CAs
   changing the chaining
     reuse what honza has done
-  new role for CA creation/administration
-    delegate administration of specific CA
-      talk to rcrit
-
-  profiles themselves
-    there is no file upload capability in CLI?
-    see what ipa cert-request does
-    but we will probably just have to copy&paste for now
 
   certmonger
 
@@ -41,7 +33,8 @@
   work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
 
 
-{{Feature|version=4.2.0|ticket=4559}}
+{{Admon/important|Work in progress|This design is not complete yet.}}
+{{Feature|version=4.2.0|ticket=4559|author=Ftweedal}}
 
 
 Overview
@@ -83,16 +76,25 @@ those CAs.
 Use Cases
 =========
 
-User certificates for VPN authentication
-----------------------------------------
+User certificates
+-----------------
+
+There are many use cases for issuing certificates to user
+entities/principals from a sub-CA.  The sub-CA acts as a "scope"
+indicating a particular intent or authorization for certificates
+issued by the sub-CA, and the sub-CA's signing certificate can be
+used to validate certificates issued in that scope (rejecting
+others).  Some of these use cases are detailed below.
+
+VPN authentication
+^^^^^^^^^^^^^^^^^^
 
 A FreeIPA-based tool could be implemented to request short-lived
 user certificates for the purpose of VPN authentication.  It would
 be inappropriate to accept as valid any client certificate issued by
-the "primary" CA, so a sub-CA specifically for VPN authentication
+the top-level CA, so a sub-CA specifically for VPN authentication
 should be created for this purpose.  The certificate-issuing tool
-would direct certificates requests to the new CA, and the resultant
-certificates would be signed with VPN CA's signing key.
+would direct certificates signing requests to the VPN sub-CA.
 
 A CLI command could be issued to retrieve the VPN CA's signing
 certificate, and/or register it in a local security database, and
@@ -209,93 +211,8 @@ coexist in Dogtag but FreeIPA will not be aware of CAs it did not
 create.
 
 
-CA administration authorization
--------------------------------
-
-Which FreeIPA users or roles can create and administer FreeIPA
-sub-CAs needs to be decided.
-
-How those users or roles map to Dogtag credentials also needs to be
-determined.  It may be sufficient to use the existing "CA agent"
-credential, or a separate credential or more fine-grained ACIs in
-Dogtag could be required.
-
-(*ftweedal*) since all FreeIPA <-> Dogtag communication is currently
-done via a single certificate that has administrator privileges on
-the CA instance, my initial plan is to continue this system and
-control access via FreeIPA ACIs.
-
-Comments from *mkosec* (nested) and *ssorce*::
-
-  Martin Kosek <mkosek@redhat.com> wrote:
-
-    Agent credential is used by FreeIPA web interface, all
-    authorization is then done on python framework level. We can add
-    more agents and then switch the used certificate, but I wonder how
-    to use it in authorization decisions. Apache service will need to
-    to have access to all these agents anyway.
-
-  We really need to move to a separate service for agent access, the
-  framework is supposed to not have any more power than the user
-  that connects to it. By giving the framework direct access to
-  credentials we fundamentally change the proposition and erode the
-  security properties of the separation.
-
-  We have discussed before a proxy process that pass in commands as
-  they come from the framework but assumes agent identity only after
-  checking how the framework authenticated to it (via GSSAPI).
-
-    First we need to think how fine grained authorization we want to
-    do.
-
-  We need to associate a user to an agent credential via a group, so
-  that we can assign the rights via roles.
-
-    I think we will want to be able to for example say that user Foo
-    can generate certificates in specified subCA. I am not sure it is
-    a good way to go, it would also make such private key distribution
-    on IPA replicas + renewal a challenge.
-
-  I do not think we need to start with very fine grained permissions
-  initially.
-
-    Right now, we only have "Virtual Operations" concept to authorize
-    different operations with Dogtag CA, but it does not distinguish
-    between different CAs. We could add a new Virtual Operation for
-    every subCA, but it looks clumsy. But the ACI-based mechanism and
-    our permission system would still be the easiest way to go, IMHO,
-    compared to utilizing PKI agents.
-
-  We need to have a different agent certificate per role, and then
-  in the proxy process associate the right agent certificate based
-  on what the framework asks and internal checking that the user is
-  indeed allowed to do so.
-
-  The framework will select the 'role' to use based on the operation
-  to be performed.
-
-  Simo.
-
-
-CA Administrator role
-^^^^^^^^^^^^^^^^^^^^^
-
-A *CA Administrator* role should be created.  ``admin`` will have
-this role initially.
-
-
-Delegation
-^^^^^^^^^^
-
-It should be possible (now or in a future iteration) to delegate
-administration of a specific sub-CA to a user or group.  (This is
-possibly only post-creation of the sub-CA).  The *CA Administrator*
-role would still have administrative powers over the sub-CA in
-addition to the delegate(s).
-
-
-Certificate request ACLs
-------------------------
+CA ACLs plugin
+--------------
 
 Sub-CA use cases involve the issuance of certificates for specific
 purposes.  It is necessary to be able to restrict the types of
@@ -317,14 +234,84 @@ and groups with a CA.  Specifically:
 See also the ``ipa caacl-*`` commands in the CLI section below.
 
 
+Permissions
+^^^^^^^^^^^
+
+The following permissions will be created.  All permissions are
+intially granted to the *CA Administrator* role.
+
+``System: Read CA ACLs``
+  All may read all attributes.
+
+``System: Add CA ACL``
+  Add a new CA ACL.
+
+``System: Delete CA ACL``
+  Delete an existing CA ACL.
+
+``System: Modify CA ACL``
+  Modify the name or description, or enable/disable the CA ACL.
+
+``System: Manage CA ACL membership``
+  Manage CA, profile, user, host and service membership.
+
+
 Schema
 ^^^^^^
 
-**TODO**
+CA ACL objects shall be stored in the container
+``cn=caacls,cn=ca,$SUFFIX``.
+
+New attributes are defined for CA and profile membership and
+categories ("all CAs / profiles").  The ``ipaCaAcl`` object class
+extends ``ipaAssociation`` uses these new attributes as well as
+existing member and category attributes.
+
+::
+
+  attributeTypes: (2.16.840.1.113730.3.8.21.1.2
+    NAME 'memberCa'
+    DESC 'Reference to a CA member'
+    SUP distinguishedName
+    EQUALITY distinguishedNameMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+    X-ORIGIN 'IPA v4.2' )
+  attributeTypes: (2.16.840.1.113730.3.8.21.1.3
+    NAME 'memberProfile'
+    DESC 'Reference to a certificate profile member'
+    SUP distinguishedName
+    EQUALITY distinguishedNameMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+    X-ORIGIN 'IPA v4.2' )
+  attributeTypes: (2.16.840.1.113730.3.8.21.1.4
+    NAME 'caCategory'
+    DESC 'Additional classification for CAs'
+    EQUALITY caseIgnoreMatch
+    ORDERING caseIgnoreOrderingMatch
+    SUBSTR caseIgnoreSubstringsMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+    X-ORIGIN 'IPA v4.2' )
+  attributeTypes: (2.16.840.1.113730.3.8.21.1.5
+    NAME 'profileCategory'
+    DESC 'Additional classification for certificate profiles'
+    EQUALITY caseIgnoreMatch
+    ORDERING caseIgnoreOrderingMatch
+    SUBSTR caseIgnoreSubstringsMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+    X-ORIGIN 'IPA v4.2' )
+  objectClasses: (2.16.840.1.113730.3.8.21.2.2
+    NAME 'ipaCaAcl'
+    SUP ipaAssociation
+    STRUCTURAL
+      MUST cn
+      MAY
+        ( caCategory $ profileCategory $ userCategory $ hostCategory
+        $ serviceCategory $ memberCa $ memberProfile $ memberService )
+      X-ORIGIN 'IPA v4.2' )
 
 
-Sub-CA
-------
+Sub-CA plugin
+-------------
 
 The FreeIPA representation of a sub-CA has the following fields:
 
@@ -368,26 +355,73 @@ should be used, e.g. a duration spec that supports ``5y``,
 duration interpretation in FreeIPA?  If so, be consistent.
 
 
+Permissions
+^^^^^^^^^^^
+
+**TODO**
+
+
 Schema
 ^^^^^^
 
-**TODO**
+CA objects shall be stored in the container
+``cn=cas,cn=ca,$SUFFIX``.
+
+**TODO** describe ca object class and new attributes (if any).
 
 
 Installation
 ------------
 
+During installation we must create a default CA ACL that grants use
+of caIPAserviceCert on the top-level CA to all hosts and services::
+
+  dn: ipauniqueid=autogenerate,cn=caacls,cn=ca,$SUFFIX
+  changetype: add
+  objectclass: ipaassociation
+  objectclass: ipacaacl
+  ipauniqueid: autogenerate
+  cn: hosts_services_caIPAserviceCert
+  ipaenabledflag: TRUE
+  memberprofile: cn=caIPAserviceCert,cn=certprofiles,cn=ca,$SUFFIX
+  hostcategory: all
+  servicecategory: all
+
 ``ipa-server-install`` need not initially create any sub-CAs, but
-see the "Default sub-CAs" use case.
+see the "Default sub-CAs" use case for a suggested future direction.
+
+A CA object for the top-level CA will initially be created, with DN
+``cn=.,ou=cas,cn=ca,$SUFFIX``.
 
 
 Implementation
 ==============
 
-.. Any additional requirements or changes discovered during the
-   implementation phase.
+The implementation will be delivered in two phases.
 
-.. Include any rejected design information in the History section.
+**Phase 1** will deliver the ``caacl`` plugin and enforcement
+behaviour.  This will allow full use of the Certificate Profiles
+feature (``certprofile`` plugin) even while the ``ca`` plugin is yet
+to be implemented.
+
+All actions will apply to the top-level CA; this will be hardcoded
+or assumed as necessary.  The schema to support multiple CAs will be
+implemented in this phase.
+
+
+**Phase 2** will deliver the ``ca`` plugin which will provide for
+the creation and management of sub-CAs.  The ``caacl`` plugin will
+be enhanced with the ability to choose the CAs to which each CA ACL
+applies.
+
+
+**Future work** (`#5011`_) will implement GSSAPI authentication and ACL
+enforcement in Dogtag and remove ACL enforcement from FreeIPA.  The
+FreeIPA framework will use S4U2Proxy to obtain a ticket for Dogtag
+on behalf of the bind principal, and the RA Agent priviliges will be
+dropped.
+
+.. _#5011: https://fedorahosted.org/freeipa/ticket/5011
 
 
 Feature Management
@@ -419,13 +453,13 @@ capability to retrieve certificate *chains* from the root to the
 end-entity certificate.
 
 
-New commands
-^^^^^^^^^^^^
+``ca`` plugin commands
+^^^^^^^^^^^^^^^^^^^^^^
 
 ``ipa ca-find``
 '''''''''''''''
 
-Search for sub-CAs.  **TODO** more detail needed.
+Search for sub-CAs.
 
 
 ``ipa ca-show <shortname>``
@@ -474,58 +508,190 @@ issuing certificates.
 (Re-)enable a sub-CA.
 
 
-``ipa caacl-add <shortname> <acl>``
-'''''''''''''''''''''''''''''''''''
-
-Create a CA ACL object.
+``caacl`` plugin commands
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
-``ipa caacl-del <acl>``
+``ipa caacl-find``
+''''''''''''''''''
+
+Search for CA ACLs.
+
+``--name=STR``
+  CA ACL name
+``--desc=STR``
+  Description
+``--cacat=['all']``
+  CA category. Mutually exclusive with CA members. *To be
+  introduced with ca plugin.*
+``--profilecat=['all']``
+  Profile category.  Mutually exclusive to profile
+  members.
+``--usercat=['all']``
+  User category.  Mutually exclusive with user members.
+``--hostcat=['all']``
+  Host category.  Mutually exclusive with host members.
+``--servicecat=['all']``
+  Service category.  Mutually exclusive with service
+  members.
+
+
+``ipa caacl-show NAME``
 '''''''''''''''''''''''
+
+Show details of named CA ACL.
+
+
+``ipa caacl-add NAME``
+''''''''''''''''''''''
+
+Create a CA ACL.  New CA ACLs are initially enabled.
+
+``--desc=STR``
+  Description
+``--cacat=['all']``
+  CA category. Mutually exclusive with CA members. *To be
+  introduced with ca plugin.*
+``--profilecat=['all']``
+  Profile category.  Mutually exclusive to profile
+  members.
+``--usercat=['all']``
+  User category.  Mutually exclusive with user members.
+``--hostcat=['all']``
+  Host category.  Mutually exclusive with host members.
+``--servicecat=['all']``
+  Service category.  Mutually exclusive with service
+  members.
+
+
+``ipa caacl-mod NAME``
+''''''''''''''''''''''
+
+Modify the named CA ACL.
+
+``--desc=STR``
+  Description
+``--cacat=['all']``
+  CA category. Mutually exclusive with CA members. *To be
+  introduced with ca plugin.*
+``--profilecat=['all']``
+  Profile category.  Mutually exclusive to profile
+  members.
+``--usercat=['all']``
+  User category.  Mutually exclusive with user members.
+``--hostcat=['all']``
+  Host category.  Mutually exclusive with host members.
+``--servicecat=['all']``
+  Service category.  Mutually exclusive with service
+  members.
+``--setattr``, ``--addattr``, ``--delattr``
+  As per other IPA framework commands.
+
+
+``ipa caacl-del NAME``
+''''''''''''''''''''''
 
 Delete the CA ACL.
 
 
-``ipa caacl-add-profile <acl> <profileId>``
-'''''''''''''''''''''''''''''''''''''''''''
+``ipa caacl-enable NAME``
+'''''''''''''''''''''''''
 
-Add a profile to the CA ACL.
-
-
-``ipa caacl-remove-profile <acl> <profileId>``
-''''''''''''''''''''''''''''''''''''''''''''''
-
-Remove the profile from the CA ACL.
+Enable the named CA ACL.
 
 
-``ipa caacl-add-member <acl>``
+``ipa caacl-disable NAME``
+''''''''''''''''''''''''''
+
+Disabled the named CA ACL.
+
+
+``ipa caacl-add-ca NAME``
+'''''''''''''''''''''''''
+
+Add CA(s) to the CA ACL.  *To be introduced with ca plugin.
+Initially, top-level CA is assumed.*
+
+``--ca=STR``
+  CA to add.
+
+
+``ipa caacl-remove-ca NAME``
+''''''''''''''''''''''''''''
+
+Add CA(s) to the CA ACL.  *To be introduced with ca plugin.
+Initially, top-level CA is assumed.*
+
+``--ca=STR``
+  CA to remove.
+
+
+``ipa caacl-add-profile NAME``
 ''''''''''''''''''''''''''''''
+
+Add profile(s) to the CA ACL.
+
+``--certprofiles=STR``
+  Certificate Profiles to add.
+
+
+``ipa caacl-remove-profile NAME``
+'''''''''''''''''''''''''''''''''
+
+Remove profile(s) from the CA ACL.
+
+``--certprofiles=STR``
+  Certificate Profiles to remove.
+
+
+``ipa caacl-add-user NAME``
+'''''''''''''''''''''''''''
 
 ``--users``
   Add user(s)
-``--hosts``
-  Add host(s)
-``--services``
-  Add service(s)
 ``--groups``
   Add user group(s)
+
+
+``ipa caacl-remove-user NAME``
+''''''''''''''''''''''''''''''
+
+``--users``
+  Remove user(s)
+``--groups``
+  Remove user group(s)
+
+
+``ipa caacl-add-host NAME``
+''''''''''''''''''''''''''''''
+
+``--hosts``
+  Add host(s)
 ``--hostgroups``
   Add host group(s)
 
 
-``ipa caacl-remove-member <acl>``
-'''''''''''''''''''''''''''''''''
+``ipa caacl-remove-host NAME``
+''''''''''''''''''''''''''''''
 
-``--users``
-  Remove user(s)
 ``--hosts``
   Remove host(s)
-``--services``
-  Remove service(s)
-``--groups``
-  Remove user group(s)
 ``--hostgroups``
   Remove host group(s)
+
+
+``ipa caacl-add-service NAME``
+''''''''''''''''''''''''''''''
+
+``--services``
+  Add service(s)
+
+
+``ipa caacl-remove-service NAME``
+'''''''''''''''''''''''''''''''''
+
+``--services``
+  Remove service(s)
 
 
 Enhanced commands
@@ -553,12 +719,15 @@ Enhanced commands
   certificate).
 
 
-``ipa cert-request [shortname]``
+``ipa cert-request --ca=CAREF``
 ''''''''''''''''''''''''''''''''
 
-``shortname``
-  Optional positional parameter to specify a sub-CA to which to
-  direct the request (omit to specify the top-level CA).
+This command will be modified to enforce CA ACLs.
+
+
+``ca``
+  Option to specify the CA to which to direct the request.
+  Optional; default to the top-level CA.
 
 
 Certmonger
@@ -587,9 +756,8 @@ PEM could be minimal requirement.
 Configuration
 -------------
 
-..
-  Any configuration options?
-  Any commands to enable/disable the feature or turn on/off its parts?
+FreeIPA must be deployed with the Dogtag RA in order to use these
+features.  No other configuration is required.
 
 
 Upgrade
@@ -635,14 +803,3 @@ Dependencies
 - Dogtag with sub-CA feature (slated for v10.3).
 
 .. _Certificate Profiles: http://www.freeipa.org/page/V4/Certificate_Profiles
-
-
-Author
-======
-
-Fraser Tweedale
-
-Email
-  ftweedal@redhat.com
-IRC
-  ftweedal
