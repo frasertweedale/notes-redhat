@@ -7,13 +7,7 @@
   You should have received a copy of the license along with this
   work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
 
-{{Admon/important|Work in progress|This design is not complete yet.}}
 {{Feature|version=4.2.0|ticket=57|ticket2=4002|ticket3=2915|ticket4=4938|author=Ftweedal}}
-
-
-*********
-DELETE ME
-*********
 
 
 Overview
@@ -218,7 +212,22 @@ Enabling or disabling profiles
 IPA will not provide a direct way to enable or disable profiles in
 Dogtag.  Separate CA ACL rules will govern whether a principal can
 use a particular profile, and these rules can be disabled or enabled
-by privileged users.
+by privileged users.  See the `V4/Sub-CAs`_ design for more
+information.
+
+.. _V4/Sub-CAs: http://www.freeipa.org/page/V4/Sub-CAs
+
+
+Permissions
+-----------
+
+The following new permissions will be added, as will the *CA
+Administrator* role which is initially granted these permissions.
+
+- ``System: Read Certificate Profiles`` (all principals may read)
+- ``System: Import Certificate Profile``
+- ``System: Delete Certificate Profile``
+- ``System: Modify Certificate Profile``
 
 
 Schema
@@ -244,7 +253,7 @@ The data stored for each profile are:
 - Profile certificate storage configuration (explained above)
 
 Certificate profile entries will be stored under a new DN:
-``cn=certprofiles,cn=etc,$SUFFIX``.
+``cn=certprofiles,cn=ca,$SUFFIX``.
 
 Schema::
 
@@ -265,6 +274,12 @@ Schema::
 
 Implementation
 ==============
+
+``ipa-pki-proxy.conf`` had to be updated to allow access to the
+``/ca/rest/profiles`` endpoint and to allow *either* certificate
+authentication or password authentication for logging into the REST
+API.
+
 
 Feature Management
 ==================
@@ -373,9 +388,9 @@ Display the properties of a Certificate Profile.
 ``ipa cert-request``
 ^^^^^^^^^^^^^^^^^^^^
 
-Modify command to add ``--profile ID`` argument to specify which
-profile to use.  If not given, the default ``caIPAserviceCert``
-profile will be used.
+Modify command to add **optional** ``--profile-id ID`` argument to
+specify which profile to use.  If not given, the default
+``caIPAserviceCert`` profile will be used.
 
 
 Configuration
@@ -393,8 +408,8 @@ profiles can be introduced by FreeIPA in the future, as required.
 Upgrade
 =======
 
-The upgrade process ensure that essential and other "pre-canned"
-profiles are installed and enabled.
+The upgrade process ensures that essential and other *included
+profiles* are installed and enabled.
 
 Dogtag instances must be configured to use LDAP-based profiles, so
 that they are replicated.  This involves setting
@@ -414,21 +429,11 @@ should be adequately documented in release notes.
 Handling inconsistent profiles
 ------------------------------
 
-**FEEDBACK REQUIRED**
-
-File-based profiles could be (but should not be) inconsistent
-between replica.
-
-This might need to be a manual upgrade task in case of inconsistent
-profiles between Dogtag instances in a replicated environment, or
-because the administrator may have already enabled LDAP profile
-replication in Dogtag.
-
-Alternatively, we take a "first upgrade wins" approach - whichever
-replica is upgraded first, its profiles are imported.  On other
-replica, the presence of LDAP profiles is detected and no import is
-performed.  This behaviour must be clearly explained and
-administrators who have custom profiles encouraged to check for
+We take a "first upgrade wins" approach - whichever replica is
+upgraded first, its profiles are imported.  On other replica, the
+presence of LDAP profiles will be detected and no import or conflict
+resolution is attempted.  This behaviour must be clearly explained
+and administrators who have custom profiles encouraged to check for
 inconsistencies prior to upgrade.
 
 
