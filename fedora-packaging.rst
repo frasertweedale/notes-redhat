@@ -21,6 +21,16 @@ Prevent update of a package::
 (The full package name is required; use `rpm -qa` to find it.)
 
 
+dnf
+---
+
+To downgrade a package as well as dependents, use the
+``--allowerasing`` to appease the solver.  flag.  For example, the
+following will downgrade ``pki-base`` as well as dependents::
+
+  $ sudo dnf downgrade --allowerasing pki-base-10.2.3-2.fc22
+
+
 Building RPMs
 -------------
 
