@@ -8,6 +8,21 @@ Generate new key and CSR::
 
   openssl req -newkey rsa:4096 -keyout key.pem -out req.pem [-nodes]
 
+Config file with subjectAltName extension::
+
+  [ req ]
+  prompt = no
+  encrypt_key = no
+
+  distinguished_name = bogo
+  req_extensions = lolsan
+
+  [ bogo ]
+  commonName = "bogo.ipa.local"
+
+  [ lolsan ]
+  subjectAltName=DNS:lol.ipa.local
+
 
 OCSP
 ----
