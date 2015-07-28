@@ -7,7 +7,7 @@
   You should have received a copy of the license along with this
   work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
 
-{{Feature|version=4.2.0|ticket=57|ticket2=4002|ticket3=2915|ticket4=4938|author=Ftweedal}}
+{{Feature|version=4.2.0|ticket=57|ticket2=4002|ticket3=2915|ticket4=4938|author=Ftweedal|reviewer=Mbasti}}
 
 
 Overview
@@ -73,6 +73,11 @@ Terminology
 
 *custom profile*
   Any profile that has been imported by an administrator.
+
+*FreeIPA-managed profile*
+  A profile that was added via FreeIPA and has an associated object
+  in the FreeIPA directory, containing FreeIPA-specific
+  configuration, distinguishing it from other profiles in Dogtag.
 
 
 Profile backend
@@ -185,41 +190,54 @@ operations that could fail according to profile enabled/disabled
 state (e.g. profile deletion).
 
 
-Storing issued certificates
+
+Certificate Profiles plugin
 ---------------------------
 
+The ``certprofile`` plugin will be created for the management of
+FreeIPA profiles.  It will allow privileged users to import, modify
+or remove FreeIPA-managed profiles in Dogtag and manage the
+FreeIPA-specific profile configuration.
+
+Enabling or disabling profiles
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+IPA will not provide a direct way to enable or disable profiles in
+Dogtag.  Separate CA ACL rules will govern whether a principal can
+use a particular profile, and these rules can be disabled or enabled
+by privileged users.  See the CA ACL section below.
+
+Storing issued certificates
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 Support for multiple profiles means that principals (including user
-principals) can now have *multiple certificates*.  The proposed
+principals) may now have *multiple certificates*.  The proposed
 schema and implications are discussed in the `V4/User Certificates`_
 design page.
 
 .. _V4/User Certificates: http://www.freeipa.org/page/V4/User_Certificates
 
-The FreeIPA data about a profile will include a setting that
-says whether it will, after the certificate is issued:
+The FreeIPA profile object class includes a boolean attribute
+``ipaCertProfileStoreIssued`` that controls whether certificate
+issued using that profile are stored in the subject principal's
+``userCertificate`` attribute.  For use cases that involve issuance
+of many, possibly short-lived certificates, setting this attribute
+to ``FALSE`` ensures that these certificates to not accumulate in
+the principal's entry.
 
-- Stored the full certificate in the `userCertificate` attribute; or
+When issuing a certificate via ``ipa cert-request``, the semantics
+of ``ipaCertProfileStoreIssued`` is:
 
-- Store nothing at all (intended for short-lived certificates).
+- when ``TRUE``, *add* the full certificate to the `userCertificate`
+  attribute;
 
-The `cert-request` command will be updated to act according to this
-configuration for the requested profile.
+- when ``FALSE``, store nothing at all and merely deliver the
+  issued certificate in the command result.
 
-
-Enabling or disabling profiles
-------------------------------
-
-IPA will not provide a direct way to enable or disable profiles in
-Dogtag.  Separate CA ACL rules will govern whether a principal can
-use a particular profile, and these rules can be disabled or enabled
-by privileged users.  See the `V4/Sub-CAs`_ design for more
-information.
-
-.. _V4/Sub-CAs: http://www.freeipa.org/page/V4/Sub-CAs
-
+The `cert-request` command will be updated to act accordingly.
 
 Permissions
------------
+^^^^^^^^^^^
 
 The following new permissions will be added, as will the *CA
 Administrator* role which is initially granted these permissions.
@@ -231,7 +249,7 @@ Administrator* role which is initially granted these permissions.
 
 
 Schema
-------
+^^^^^^
 
 FreeIPA will store data about the certificate profiles that are
 managed via FreeIPA (including the *included profiles*).  This
@@ -272,6 +290,128 @@ Schema::
     X-ORIGIN 'IPA v4.2' )
 
 
+CA ACLs plugin
+--------------
+
+Custom profile use cases involve the issuance of certificates for
+specific, unrelated purposes.  It is necessary to be able to define
+rules that control which profiles can be used to issue certificates
+to which principals.  ACLs will be used to associate profiles,
+principals and groups with a CA (initially just the *top-level* CA,
+but this provision is made for forward-compatibility with Sub-CAs).
+Specifically:
+
+- An ACL can permit access to multiple CAs.
+
+- An ACL can permit access to multiple profiles.
+
+- An ACL can have multiple users, services, hosts, (user) groups and
+  hostgroups associated with it.
+
+- The interpretation of the ACL is: *these principals (or groups)
+  are permitted to request certificates using these profiles, on
+  these CAs*.
+
+See also the ``ipa caacl-*`` commands in the CLI section below.
+
+
+Permissions
+^^^^^^^^^^^
+
+The following permissions will be created.  All permissions are
+intially granted to the *CA Administrator* role.
+
+``System: Read CA ACLs``
+  All may read all attributes.
+
+``System: Add CA ACL``
+  Add a new CA ACL.
+
+``System: Delete CA ACL``
+  Delete an existing CA ACL.
+
+``System: Modify CA ACL``
+  Modify the name or description, or enable/disable the CA ACL.
+
+``System: Manage CA ACL membership``
+  Manage CA, profile, user, host and service membership.
+
+
+Schema
+^^^^^^
+
+CA ACL objects shall be stored in the container
+``cn=caacls,cn=ca,$SUFFIX``.
+
+New attributes are defined for CA and profile membership and
+categories ("all CAs / profiles").  The ``ipaCaAcl`` object class
+extends ``ipaAssociation`` uses these new attributes as well as
+existing member and category attributes.
+
+Note that the ``memberCa`` and ``caCategory`` attributes are unused
+by this design.  They will be used by the Sub-CAs feature.
+
+::
+
+  attributeTypes: (2.16.840.1.113730.3.8.21.1.2
+    NAME 'memberCa'
+    DESC 'Reference to a CA member'
+    SUP distinguishedName
+    EQUALITY distinguishedNameMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+    X-ORIGIN 'IPA v4.2' )
+  attributeTypes: (2.16.840.1.113730.3.8.21.1.3
+    NAME 'memberProfile'
+    DESC 'Reference to a certificate profile member'
+    SUP distinguishedName
+    EQUALITY distinguishedNameMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+    X-ORIGIN 'IPA v4.2' )
+  attributeTypes: (2.16.840.1.113730.3.8.21.1.4
+    NAME 'caCategory'
+    DESC 'Additional classification for CAs'
+    EQUALITY caseIgnoreMatch
+    ORDERING caseIgnoreOrderingMatch
+    SUBSTR caseIgnoreSubstringsMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+    X-ORIGIN 'IPA v4.2' )
+  attributeTypes: (2.16.840.1.113730.3.8.21.1.5
+    NAME 'profileCategory'
+    DESC 'Additional classification for certificate profiles'
+    EQUALITY caseIgnoreMatch
+    ORDERING caseIgnoreOrderingMatch
+    SUBSTR caseIgnoreSubstringsMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+    X-ORIGIN 'IPA v4.2' )
+  objectClasses: (2.16.840.1.113730.3.8.21.2.2
+    NAME 'ipaCaAcl'
+    SUP ipaAssociation
+    STRUCTURAL
+      MUST cn
+      MAY
+        ( caCategory $ profileCategory $ userCategory $ hostCategory
+        $ serviceCategory $ memberCa $ memberProfile $ memberService )
+      X-ORIGIN 'IPA v4.2' )
+
+
+Default CA ACL
+^^^^^^^^^^^^^^
+
+During installation we must create a default CA ACL that grants use
+of caIPAserviceCert on the top-level CA to all hosts and services::
+
+  dn: ipauniqueid=autogenerate,cn=caacls,cn=ca,$SUFFIX
+  changetype: add
+  objectclass: ipaassociation
+  objectclass: ipacaacl
+  ipauniqueid: autogenerate
+  cn: hosts_services_caIPAserviceCert
+  ipaenabledflag: TRUE
+  memberprofile: cn=caIPAserviceCert,cn=certprofiles,cn=ca,$SUFFIX
+  hostcategory: all
+  servicecategory: all
+
+
 Implementation
 ==============
 
@@ -279,6 +419,16 @@ Implementation
 ``/ca/rest/profiles`` endpoint and to allow *either* certificate
 authentication or password authentication for logging into the REST
 API.
+
+As part of this feature, FreeIPA now manages its own profiles.
+Previously, the default profile was provided by Dogtag itself.
+(Currently, it still is, but FreeIPA overrides it, and its removal
+from Dogtag should now be considered).  FreeIPA profile *templates*
+(which have variables that are substituted before they are imported
+into Dogtag) are stored in ``/usr/share/ipa/profiles/``.
+
+The CA ACL enforcement functions use the existing HBAC machinery
+from the ``pyhbac`` module.
 
 
 Feature Management
@@ -290,13 +440,15 @@ UI
 Profile management UI
 ^^^^^^^^^^^^^^^^^^^^^
 
-A grid UI shall be provided that lists profiles and their important
-attributes (description, enabled/disabled status, etc).  Actions to
-enable/disable a profile, delete a profile, or download a profile's
-full content will be provided.
+A grid UI shall be provided that lists FreeIPA-managed profiles and
+allows editing of their FreeIPA-specific configuration.
 
-A profile import dialog will allow an administrator to paste profile
-content and import it into Dogtag.
+
+CA ACL management UI
+^^^^^^^^^^^^^^^^^^^^
+
+A web UI allowing creation and management of CA ACLs will be added.
+It will work similarly to the HBAC UI.
 
 
 Certificate management UI
@@ -306,8 +458,8 @@ There are existing UI elements for requesting a certificate for, and
 displaying the certificate issued to a service principal.  These
 aspects of the UI must be enhanced to support multiple certificates.
 
-For certificate requests, a drop-down list of profiles will be
-suitable for selecting a profile.
+For certificate requests, a drop-down list of FreeIPA-managed
+profiles will be suitable for selecting a profile.
 
 For viewing certificates, a list of certificates should be
 presented.  Each should identify the profile that was used to issue
@@ -380,9 +532,162 @@ particular purpose.
 
 Display the properties of a Certificate Profile.
 
-``--output=FILE``
+``--out=FILE``
   Write the Dogtag profile data (Dogtag raw format) to the named
   file.
+
+
+``ipa caacl-find``
+^^^^^^^^^^^^^^^^^^
+
+Search for CA ACLs.
+
+``--name=STR``
+  CA ACL name
+``--desc=STR``
+  Description
+``--profilecat=['all']``
+  Profile category.  Mutually exclusive to profile
+  members.
+``--usercat=['all']``
+  User category.  Mutually exclusive with user members.
+``--hostcat=['all']``
+  Host category.  Mutually exclusive with host members.
+``--servicecat=['all']``
+  Service category.  Mutually exclusive with service
+  members.
+
+
+``ipa caacl-show NAME``
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Show details of named CA ACL.
+
+
+``ipa caacl-add NAME``
+^^^^^^^^^^^^^^^^^^^^^^
+
+Create a CA ACL.  New CA ACLs are initially enabled.
+
+``--desc=STR``
+  Description
+``--profilecat=['all']``
+  Profile category.  Mutually exclusive to profile
+  members.
+``--usercat=['all']``
+  User category.  Mutually exclusive with user members.
+``--hostcat=['all']``
+  Host category.  Mutually exclusive with host members.
+``--servicecat=['all']``
+  Service category.  Mutually exclusive with service
+  members.
+
+
+``ipa caacl-mod NAME``
+^^^^^^^^^^^^^^^^^^^^^^
+
+Modify the named CA ACL.
+
+``--desc=STR``
+  Description
+``--profilecat=['all']``
+  Profile category.  Mutually exclusive to profile
+  members.
+``--usercat=['all']``
+  User category.  Mutually exclusive with user members.
+``--hostcat=['all']``
+  Host category.  Mutually exclusive with host members.
+``--servicecat=['all']``
+  Service category.  Mutually exclusive with service
+  members.
+``--setattr``, ``--addattr``, ``--delattr``
+  As per other IPA framework commands.
+
+
+``ipa caacl-del NAME``
+^^^^^^^^^^^^^^^^^^^^^^
+
+Delete the CA ACL.
+
+
+``ipa caacl-enable NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Enable the named CA ACL.
+
+
+``ipa caacl-disable NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Disabled the named CA ACL.
+
+
+``ipa caacl-add-profile NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Add profile(s) to the CA ACL.
+
+``--certprofiles=STR``
+  Certificate Profiles to add.
+
+
+``ipa caacl-remove-profile NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Remove profile(s) from the CA ACL.
+
+``--certprofiles=STR``
+  Certificate Profiles to remove.
+
+
+``ipa caacl-add-user NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``--users``
+  Add user(s)
+``--groups``
+  Add user group(s)
+
+
+``ipa caacl-remove-user NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``--users``
+  Remove user(s)
+``--groups``
+  Remove user group(s)
+
+
+``ipa caacl-add-host NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``--hosts``
+  Add host(s)
+``--hostgroups``
+  Add host group(s)
+
+
+``ipa caacl-remove-host NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``--hosts``
+  Remove host(s)
+``--hostgroups``
+  Remove host group(s)
+
+
+``ipa caacl-add-service NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``--services``
+  Add service(s)
+
+
+``ipa caacl-remove-service NAME``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``--services``
+  Remove service(s)
 
 
 ``ipa cert-request``
@@ -396,9 +701,12 @@ specify which profile to use.  If not given, the default
 Configuration
 -------------
 
-There is no specific configuration in FreeIPA to enable profiles.
-Profiles themselves may be enabled and disabled separately (and get
-enabled automatically upon import).
+FreeIPA must be deployed with the Dogtag RA in order to use these
+features.  No other configuration is required.
+
+There is no configuration in FreeIPA to enable or disable profiles
+in Dogtag.  FreeIPA-managed profiles are automatically enabled in
+Dogtag upon import.
 
 Essential profiles (if any beyond the default set in Dogtag) will be
 added and enabled on server installation.  Other "pre-canned"
@@ -408,8 +716,8 @@ profiles can be introduced by FreeIPA in the future, as required.
 Upgrade
 =======
 
-The upgrade process ensures that essential and other *included
-profiles* are installed and enabled.
+The upgrade process ensures that included profiles are imported and
+enabled.
 
 Dogtag instances must be configured to use LDAP-based profiles, so
 that they are replicated.  This involves setting
@@ -435,6 +743,14 @@ presence of LDAP profiles will be detected and no import or conflict
 resolution is attempted.  This behaviour must be clearly explained
 and administrators who have custom profiles encouraged to check for
 inconsistencies prior to upgrade.
+
+
+Adding default CA ACL
+---------------------
+
+On upgrade, a default CA ACL added that permits host and service
+principals to use the default profile, ensuring that current
+capabilities are maintained.
 
 
 How to Test
