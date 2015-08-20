@@ -91,3 +91,12 @@ Enrolling a subordinate signing certificate
 
 1. Create a PKCS #10 CSR
 2. Enrol using ``caCrossSignedCACert`` profile
+
+
+Debugging
+=========
+
+- Used to set ``JAVA_OPTS`` in ``/etc/pki/<instance-name>/tomcat.conf``.
+
+- With nuxwdog, ``/etc/sysconfig/pki-tomcat`` is the place to set
+  ``JAVA_OPTS``.
