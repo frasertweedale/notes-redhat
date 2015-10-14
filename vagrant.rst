@@ -1,3 +1,23 @@
+Managing boxes
+==============
+
+Add box from filesystem::
+
+  % vagrant box add --name <name> <path>
+  ==> box: Adding box '<name>' (v0) for provider: 
+      box: Downloading: file://<path>
+  ==> box: Successfully added box '<name>' (v0) for 'virtualbox'!
+
+List boxes::
+
+  % vagrant box list
+  box-cutter/fedora22 (virtualbox, 2.0.2)
+  centos/7            (libvirt, 1508.01)
+  centos/7            (virtualbox, 1508.01)
+  ipa-workshop        (virtualbox, 0)
+
+
+
 Hostname
 ========
 
@@ -11,6 +31,14 @@ least).
 
 DNS
 ===
+
+``vagrant-hostmanager``
+------------------------
+
+Install plugin::
+
+  % vagrant plugin install vagrant-hostmanager
+
 
 ``vagrant-dnsmasq``
 -------------------
