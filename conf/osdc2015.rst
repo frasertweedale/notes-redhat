@@ -1,0 +1,171 @@
+Open Source Developers' Conference 2015 report
+==============================================
+
+OSDC 2015 was held at Wrest Point hotel in Hobart, Tasmania.  It was
+my first time in Tasmania - it is a small but very pretty harbour
+city.
+
+The conference was smaller than in previous years but still had many
+interesting technical presentations.  I ran a 2-hour FreeIPA
+workshop which was successful and led to some interesting
+discussions.  The review of my workshop and outlines of other
+presentations follow.
+
+
+FreeIPA workshop
+----------------
+
+There were about 10 participants.  Based on a run-through with some
+Brisbane staff last week, I decided that a bit more material was
+needed so I wrote an additional module on service cert management
+with Certmonger during the flight down.
+
+As predicted, only a few of the attendees had done the preparation
+to install Vagrant + VirtualBox and download the VM image.  I had
+the needed bits on a couple of USB sticks and soon everyone was up
+and running except for one person who couldn't get VirtualBox to
+work (he still stayed and was interested, followed along and asked
+questions etc).  One attendee had a very weak "netbook" and
+ipa-server-install was failing due to timeout waiting for CA to come
+up.  He ssh'd into his home machine and did the whole workshop
+there!
+
+Based on the experience with setup and the higher numbers expected I
+think I would want about 10 4G USB sticks for my linux.conf.au
+FreeIPA workshop next year.
+
+The workshop itself, once people were up and running, went very
+smoothly.  Most participants were working slightly ahead of my
+demonstration of the material, and noone was far behind.  HBAC and
+web app authentication was a real "light bulb" experience for some.
+Everyone (except the false starter) completed the workshop
+curriculum without too much time remaining, so the Certmonger module
+was definitely worth it.  The linux.conf.au workshop will be shorter
+so I don't think I need to do anything to the curriculum.
+
+Some of the questions that came up:
+
+- *Why doesn't the KDC refuse to hand out a service ticket if HBAC
+  will deny access to the host/service?*  I indicated that this is
+  technically feasible in the Kerberos protocol but too much
+  complexity for KDC and counterproductive where there are
+  time-based access control policies.  Are there other aspcets to
+  this that I have omitted?
+
+- *Why doesn't user automatically get TGT on a host upon login?*  I
+  thought that this was possible but I'm not sure how to configure
+  it.  Can anyone point to docs or fill me in here?
+
+- The usual questions and answers about "what about nginx/etc" for
+  web app authentication.
+
+I made a Google Forms form[1] to collect feedback.  Only a few
+people responded but on the "would recommend or deploy FreeIPA"
+questions (scale 1 to 5 being "Never" to "Highly likely") we went
+from [1,2,3] before the workshop to [3,4,5] afterwards, which if
+reflective of the whole group is a good result.  There was also some
+constructive feedback about how some parts of the workshop were run,
+and one respondent stated that they would have liked replica
+deployment to be part of the workshop.
+
+[1] https://goo.gl/forms/P11DtfJiNq
+
+After the workshop I had a discussion with a person who is gathering
+requirements and evaluating IdM infra for an Australian political
+party.  Their requirements include public signup and password
+reset/management so I pointed him to Community Portal and suggested
+it should be considered when evaluating how FreeIPA meets their
+needs.  Because he participated in the workshop I am sure he will
+give FreeIPA due consideration :)
+
+Another participant discussed a client case he had, needing to
+produce OpenID Connect and SAML assertions for users in AD, and
+wondered how we could help.  I pointed him toward Ipsilon.
+
+Other discussions and anecdotes were about external authentication,
+how easy it was to get Kerberos up and running with FreeIPA and the
+productivity gains it can bring even in very small organisations
+(i.e. few people) but with lots of systems involved.
+
+
+Network insecurity - a love story
+---------------------------------
+
+This was a general network security talk but at one point the
+presenter praised SSO including Kerberos and client X.509 certs,
+mentioning that although they are difficult to set up they work very
+well.  This provided a useful opportunity to promote the FreeIPA
+workshop (which was later in the conf) during questions.  Hopefully
+the audience are less scared of enterprise SSO now, or at least more
+aware that it can be worth the effort!
+
+
+HTTP by the numbers
+-------------------
+
+This presentation was about HTTP performance and how HTTP/2
+addresses some of the problems with HTTP/1 through multiplexing,
+server push and header compression (essentially making it a binary
+protocol).  It was also made clear that although HTTP/2 has a
+non-secure (i.e. non-TLS) mode specified, no browser vendors will
+implement it so the push toward HTTP/2 may see increased demand for
+X.509 certs to protect resources that noone cared that much about
+delivering over TLS before.
+
+How a client decides to talk HTTP/2 to a server is interesting - the
+*Application Layer Protocol Negotiation* (ALPN) TLS extension (RFC
+7301) is used in the ClientHello to advertise protocols the client
+is willing to speak.  The server picks one (e.g. HTTP/2) and informs
+client in the ServerHello.  In this way HTTP/2 can be negotiated
+without additional roundtrips.
+
+
+SubPos - a "dataless" WiFi positioning system
+---------------------------------------------
+
+SubPos is a protocol designed for indoor (or elsewhere where GPS
+cannot be used) positioning based on overloading SSID in 802.11
+beacon frames with geolocation data and trilaterating receiver
+position based on advertised location and signal strength of
+received frames.
+
+It is an interesting idea but you cannot really get any security
+(authentication) in 31 bytes.  The current approach is to discard
+"outlier" beacons (not robust).  In discussions after the talk the
+presenter mentioned that the paper[2] from Microsoft Research on
+which SubPos was based does describe transmitting more data across a
+sequence of frames which would allow larger payload and permit
+security, but it is a side-project and he does not seem very
+interested in pursuing this.
+
+[2] http://research.microsoft.com/pubs/73482/beaconstuffing.pdf
+
+
+Deo lightning talk
+------------------
+
+I did a 5min lightning talk on Deo.  This time I showed of the
+Apache TLS private key decryption and the full disk encryption which
+did work but, alas, I ran out of time!  Nevertheless the audience
+saw the ``deo encrypt`` and ``deo cryptsetup`` commands at work and
+were impressed.
+
+Right afterwards Paul Wayper (Red Hat GSS, Canberra) came to discuss
+it and said that he had a customer asking for the exact thing in the
+last week; customers already asking for it is a good sign!
+
+
+Web security workshop
+---------------------
+
+A general web security workshop where you get to do some simple
+exploits of common web vulnerabilities (injection, XSS etc).
+
+Something new I learned about was the W3C "Subresource Integrity"
+standard[3] which introduces the "integrity" attribute for
+``<link>`` and ``<script>`` tags.  It contains a digest of the
+resource and if third-party stylesheet/script host or your CDN gets
+compromised / MitM'd the browser will notice when the digest doesn't
+match and refuse to load the resource.
+
+[3] http://www.w3.org/TR/SRI/
