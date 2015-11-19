@@ -15,6 +15,14 @@ Or as appropriate.  On RHEL 6 add nameserver to
 ``/etc/resolv.conf``.
 
 
+Firewall
+--------
+
+RHEL 6::
+
+  # service iptables stop
+
+
 Hostname
 --------
 
