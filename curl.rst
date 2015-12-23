@@ -12,3 +12,15 @@ Note that:
   % SSL_DIR=/etc/httpd/alias curl -v \
     --cert ipaCert:$(cat /etc/httpd/alias/pwdfile.txt) \
     https://$(hostname):8443/ca/rest/account/login
+
+
+Cookies
+-------
+
+To write cookies to cookie jar::
+
+  -c <filename>
+
+To use cookies from an existing cookie jar::
+
+  -b <filename>
