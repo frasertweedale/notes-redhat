@@ -16,6 +16,10 @@ As ``root`` (not via ``sudo``)::
     slapd.RootDN="cn=Directory Manager"\
     slapd.RootDNPwd=4me2Test
 
+If installation fails due to possibly-running instance, ensure
+ownership and perms of ``/var/lock/dirsrv/`` will allow access
+to the specified uid/gid.
+
 
 CLI
 ---
