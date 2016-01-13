@@ -61,7 +61,12 @@ Common arguments:
 
 - ``-d ~/.pki/nssdb``
 - ``-c <cert-db-password>``
+- ``-C <certdb-password-file>``
 - ``-n "PKI Administrator for ipa.local"``
+
+Example::
+
+  % pki -d /etc/httpd/alias -C /etc/httpd/alias/pwdfile.txt -n ipaCert ...
 
 Show, add and delete profiles::
 
