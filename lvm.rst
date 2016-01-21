@@ -24,6 +24,10 @@ List logical volumes::
 
   # lvs
 
+To see which physical volumes (and how much) a logical volume uses::
+
+  # lvs -a -o +devices
+
 Extend logical volume ``/dev/fedora/home`` by the amount of free
 space on physical volume ``/dev/sdb4``::
 
@@ -35,3 +39,7 @@ After changing size of logical volume, resize the (ext2 / ext3 /
 ext4) filesystem::
 
   # resize2fs /dev/fedora/home
+
+Instead of ``lvextend`` followed by ``resize2fs``::
+
+  # lvresize --resizefs /path/to/lv /path/to/pv
