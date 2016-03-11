@@ -14,6 +14,10 @@
 
 .. Title: Service certificate compliance and compatibility improvements
 
+*********
+DELETE ME
+*********
+
 
 Overview
 ========
@@ -222,6 +226,25 @@ in particular).  This will be achieved with the following changes.
   the principal name.
 
 
+Wildcard certificates
+---------------------
+
+FreeIPA currently does not support wildcard certificates, although
+`ticket #3475`_ is an RFE to support them.  It should also be noted
+that `RFC 6125`_ essentially deprecates the issuance of wildcard
+certificates, but several established use cases still require them.
+
+Regarding this design, no special handling of names containing
+wildcards is required.  Enforcement of restrictions on where
+wildcards may appear in names is assumed.  The
+``SubjectAltNameCopyCNDefault`` component, if used, will copy a CN
+whether or not it contains a wildcard.  Wildcards are also allowed
+in SAN dNSNames, so there is no bearing on SAN-only certificates.
+
+.. _ticket #3475: https://fedorahosted.org/freeipa/ticket/3475
+.. _RFC 6125: https://tools.ietf.org/html/rfc6125
+
+
 Implementation
 ==============
 
@@ -242,10 +265,13 @@ Upgrade
 Each CA clone has the file ``/etc/pki/pki-tomcat/ca/registry.cfg``,
 which defines the name and class of each profile policy component to
 instantiate.  This file must be updated to instantiate the new
-profile policy components.
+profile policy components.  This should be done as part of Dogtag's
+upgrade procedure.
 
 The ``caIPAserviceCert`` profile configuration must be updated to
-use the new profile policy components.
+use the new profile policy components.  Because FreeIPA now owns its
+profiles, this shall be done as part of the FreeIPA upgrade
+procedure.
 
 
 How to Test
