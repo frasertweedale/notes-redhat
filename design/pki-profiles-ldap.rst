@@ -309,8 +309,8 @@ correspond with each stage.
 
 #. Implement the LDAP schema.
 
-#. Update ``ProfileSubsystem`` to use the LDAP database instead of
-   files.
+#.  Update ``ProfileSubsystem`` to use the LDAP database instead of
+    files.
 
     The ``LDAPConfigStore`` class was added.  It implements
     ``IConfigStore`` but since none of the profile code uses the
@@ -318,8 +318,8 @@ correspond with each stage.
     The method is documented to explain this, and recommends an
     approach to implement backup should it be needed in the future.
 
-#. Implement script(s) for importing file-based profiles into the
-   database.
+#.  Implement script(s) for importing file-based profiles into the
+    database.
 
     The import procedure is implemented as part of the
     ``CAInstallerServer`` process.
@@ -333,9 +333,9 @@ correspond with each stage.
     subsystem is initially disable, but is enabled during the spawn
     process as soon as database configuration is completed.
 
-#. Add the ``--raw`` flag to existing CLI commands for working with
-   the "raw" profile config format, and implement the
-   ``pki ca-profile-edit`` CLI command.
+#.  Add the ``--raw`` flag to existing CLI commands for working with
+    the "raw" profile config format, and implement the
+    ``pki ca-profile-edit`` CLI command.
 
     The ``ProfileResource`` REST API required a few new methods for
     working with the "raw" (i.e. ConfigStore) profile format, as a
@@ -354,8 +354,8 @@ correspond with each stage.
     wish to present sorted profile config properties to end users.
 
 
-#. Implement profile change replication monitoring and refresh
-   mechanism.
+#.  Implement profile change replication monitoring and refresh
+    mechanism.
 
     Some methods of the ``ProfileSubsystem`` were made
     ``synchronized`` in order to safely handle updates from the LDAP
@@ -368,8 +368,8 @@ correspond with each stage.
     One LDAP connection is held at all times by the persistent search
     thread.
 
-#. Implement upgrade scripts for initial import of file-based
-   profiles into the database (using the script(s) from earlier).
+#.  Implement upgrade scripts for initial import of file-based
+    profiles into the database (using the script(s) from earlier).
 
     This is expected to use the upcoming database upgrade framework.
 
