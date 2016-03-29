@@ -8,6 +8,14 @@
   work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
 
 
+.. test scenarios:
+  - 4.4 -> replica+ca
+  - (4.2 -> 4.4) -> replica+ca
+  - (4.2 -> 4.4) -> (replica -> ca-install)
+  - 4.4 -> replica -> standalone ca
+  - 3.x -> replica+ca
+
+
 Lightweight sub-CAs
 ===================
 
@@ -198,14 +206,14 @@ We will provide an API for creating a sub-CA, which will be part of
 the CA subsystem's web API.  See the *HTTP interface* section below.
 
 
-Key generation and replication
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Key generation
+^^^^^^^^^^^^^^
 
 Keys will be generated when a sub-CA is created, according to the
 user-supplied parameters.  If replica exist, they will become aware
 of the new sub-CA when LDAP replication occurs, but they will not
-have the signing key.  A mechanism for distributing the keys is
-needed.
+have the signing key.  A mechanism for replicating the keys is
+described in a later section.
 
 In the initial implementation, the sub-CA signing key (which is used
 to sign certificates) will also be used for signing CRLs and OCSP
@@ -219,50 +227,41 @@ database at ``/var/lib/pki/pki-tomcat/alias``.  Sub-CA signing keys
 will also be stored in the NSS DB, with the key nickname recorded in
 LDAP for locating the correct key.
 
-In a replicated environment, users and applications will need to be
-tolerant of not-yet-replicated signing keys.  For users, a small
-delay while replication occurs before using the new sub-CA on a
-different replica will be guaranteed to work is tolerable.  For
-testing, issues could be encountered, so tests that involve the
-creation of sub-CAs should be written to specifically handle the
-(soon to be remedied) absense of signing keys on a clone.
-Similarly, applications must be aware and tolerant of this scenario.
 
-When a signing operation is requested but the signing key is not yet
-present, options for indicating this to the cient include:
+Sub-CA objects and initialisation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- HTTP **404 Not Found** response status
-- HTTP **503 Service Unavailable** response status
-- Specific response data indicating the situation
+In Java, a sub-CA will be an instance of ``CertificateAuthority``
+(or in the case of substantial implementation differences between
+the primary CA and sub-CAs, a subclass thereof).
 
-We will also implement a method to interrogate the CA itself as to
-its readiness.  Dogtag needs better diagnostics anyway, so this
-could be considered a starting point for richer CA or server
-diagnostics.
+The (single) ``CertificateAuthority`` in the current system is a CMS
+subsystem, and the "entry point" to signing behaviour and the
+certificate repository is via ``CMS.getSubsystem(SUBSYSTEM_CA)``.
+Therefore, new behaviour will be added to ``CertificateAuthority``
+for it to locate and initialise sub-CAs, and methods added to
+provide access to the sub-CAs (which are also instances of
+``CertificateAuthority``).
 
-Specifically, this method will indicate which of the following two
-states the CA is in:
+**TODO:** document the API (which has already been designed/implemented)
 
-- Aware of existence of CA, but not in possession of keys
-- Ready to sign
 
-A third state is that the instance doesn't yet know about the
-existence of the CA.  This state will be indicated by a 404 response
-status or some other appropriate response.
+Initialisation
+^^^^^^^^^^^^^^
 
-Another operation can query an *instance* to enumerate all the CAs
-that are known to the instance, and their current status.
+Sub-CA ``CertificateAuthority`` instances will need to be
+initialised such that:
 
-Appropriate mechanisms for propagating sub-CA private key material
-to clones needs to be devised.  A secure, automatic key transport
-procedure is needed.  (Note: it must be ensured that wrapping keys
-are at least as cryptographically strong as the key being wrapped.)
-Consideration should also be given to allowing users to opt out of
-this behaviour and (manually) transport keys themselves, should they
-wish.
+- its ``CertificateChain`` is correct;
 
-Key replication service
-'''''''''''''''''''''''
+- its ``ISigningUnit`` can access the sub-CA signing key;
+
+- its ``CertificateRepository`` references the subsystem
+  certificateRepository DN
+
+
+Key replication
+~~~~~~~~~~~~~~~
 
 Initial requirements:
 
@@ -285,54 +284,120 @@ Future requirements:
   distribution themselves if they are unwilling or unable to use
   Custodia.
 
-As the *initial* release of sub-CAs will be exclusively to support
-the FreeIPA use case and not supported otherwise, it is acceptable
-in the short term for FreeIPA to provide the replication
-functionality.
+As the *initial* implementation of lightweight CAs will be
+exclusively to support the FreeIPA sub-CAs use case and not
+supported otherwise, it is acceptable in the initial implementation
+to rely on aspects of FreeIPA's Custodia configuration.
 
 The Custodia_ program will be used to perform key replication.
 Futher details of Custodia's design and use are found in the
 `Replica Promotion design proposal`_.
 
+.. _Custodia: https://github.com/latchset/custodia
 .. _Replica Promotion design proposal: https://www.freeipa.org/page/V4/Replica_Promotion#Sharing_Secrets_Securely
 
-If the key replication service is a "pull" mechanism, clones must
-request the key as soon as they are aware of the creation of a new
-sub-CA (e.g. by way of LDAP persistent search or polling).
 
-.. _custodia: https://github.com/simo5/custodia
+Design
+^^^^^^
+
+Custodia supports GSS-API for authentication.  It is possible to
+implement additional authentication methods but since the initial
+requirement is for FreeIPA integration, we can assume Dogtag has a
+Kerberos principal and keytab that will be used to authenticate to
+Custodia.  The principal must be authorized to access ``ca`` keys.
+
+Upon initialisation of the ``SigningUnit`` of a lightweight CA,
+Dogtag shall observe that signing keys are absent and spawn a thread
+that invokes an implementation of the ``KeyRetriever`` interface.
+Note that this can happen during server startup (e.g. initial run of
+a fresh clone of an existing CA instance with lightweight CAs) or at
+any other time (e.g. a lightweight CA is created on another clone,
+and the corresponding LDAP entry is seen by the persistent search).
+
+::
+
+  interface KeyRetriever {
+    /**
+     * Retrieve the specified signing key from specified host and
+     * store in local NSSDB.
+     *
+     * @return true if the retrieval was successful, otherwise false
+     */
+    boolean retrieveKey(String nickname, Collection<String> hostname);
+  }
+
+Each lightweight authority LDAP entry shall contain an multi-valued
+attribute that lists clones that possess the signing key.  Dogtag
+shall retrieve these hostnames and subsequently pass them to the
+``KeyRetriever`` along with the nickname of the key being sought.
+
+The ``KeyRetriever`` class to be used is configured in ``CS.cfg``.
+The configuration key shall be
+``feature.authority.keyRetrieverClass``
+
+Dogtag then spawns a thread that invokes the ``retrieveKey`` method
+of the configured ``KeyRetriever`` class.  (It is fine for the
+``retrieveKey`` method to block the thread).  Any exception thrown
+during the execution of the ``retrieveKey`` method shall be caught
+and logged.
+
+If the ``retrieveKey`` method returns ``true``, then ``SigningUnit``
+initialisation is restarted.  If the ``SigningUnit`` initialisation
+now completes successfully, the clone adds itself to the list of
+clones that possess the signing key in the authority's LDAP entry.
 
 
-Sub-CA objects and initialisation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``IPACustodiaKeyRetriever``
+'''''''''''''''''''''''''''
 
-In Java, a sub-CA will be an instance of ``CertificateAuthority``
-(or in the case of substantial implementation differences between
-the primary CA and sub-CAs, a subclass thereof).
+The ``IPACustodiaKeyRetriever`` class will be the default
+``KeyRetriever`` implementation used deployments of Dogtag as part
+of FreeIPA.  It will invoke a helper program written in Python that
+use FreeIPA's ``CustodiaClient`` class to retrieve keys.  Dogtag's
+Kerberos keytab will be used for authentication.
 
-The (single) ``CertificateAuthority`` in the current system is a CMS
-subsystem, and the "entry point" to signing behaviour and the
-certificate repository is via ``CMS.getSubsystem(SUBSYSTEM_CA)``.
-Therefore, new behaviour will be added to ``CertificateAuthority``
-for it to locate and initialise sub-CAs, and methods added to
-provide access to the sub-CAs (which are also instances of
-``CertificateAuthority``).
+The Kerberos principal used for authenticating shall be
+``dogtag/HOSTNAME@REALM``.  The principal must be authorised to
+retrieve ``ca`` keys from Custodia.
 
-**TODO: design API; examples.**
+The principal's keytab shall be stored at
+``/var/lib/pki/pki-tomcat/ca/conf/dogtag.keytab`` with ownership
+``pkiuser:pkiuser`` and mode ``0600``.
 
 
-Initialisation
-^^^^^^^^^^^^^^
+Behaviour when signing keys are not present
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Sub-CA ``CertificateAuthority`` instances will need to be
-initialised such that:
+In a replicated environment, users and applications will need to be
+tolerant of not-yet-replicated signing keys.  For users, a small
+delay while replication occurs before the new CA can be used on
+different replica is tolerable.  For testing, tests that involve the
+creation of lightweight CAs should be tolerant of the (temporary)
+absense of signing keys on another instance.  Similarly,
+applications should be aware of and tolerant of this possibility.
 
-- its ``CertificateChain`` is correct;
+When information about a lightweight CA is requested (e.g.
+``ca-authority-find`` or ``ca-authority-show`` commands), the
+information shall indicate whether the CA's signing keys are present
+on the instance at which the request was directed.
 
-- its ``ISigningUnit`` can access the sub-CA signing key;
+When a signing operation is requested but the signing key is not yet
+present, Dogtag shall respond with HTTP status **503 Service
+Unavailable**.
 
-- its ``CertificateRepository`` references the subsystem
-  certificateRepository DN
+(Note that if the lightweight CA's LDAP entry has not been
+replicated to an instance, requests to that authority on that
+instance will typically result in **404 Not Found** or a similar
+response.)
+
+Appropriate mechanisms for propagating sub-CA private key material
+to clones needs to be devised.  A secure, automatic key transport
+procedure is needed.  (Note: it must be ensured that wrapping keys
+are at least as cryptographically strong as the key being wrapped.)
+Consideration should also be given to allowing users to opt out of
+this behaviour and (manually) transport keys themselves, should they
+wish.
+
 
 
 Database schema
@@ -411,6 +476,10 @@ sub-CA will have its own *CRL Distribution Point* (referred to in
 the codebase and database schema as a *CRL Issuing Point* or
 *CRLIP*).
 
+CRL support for lightweight CAs is not an initial requirement.  A
+ticket has been filed to track this feature:
+https://fedorahosted.org/pki/ticket/1627
+
 
 Schema
 ^^^^^^
@@ -432,30 +501,16 @@ Publishing
 ^^^^^^^^^^
 
 The ``CertificateAuthority.initCRL()`` method is responsible for
-initialising a CA's CRLIPs.  Modifications to this method are
-necessary.
-
-- If one ``CertificateAuthority`` object is instantiated for each CA
-  or sub-CA in the instance, the method will need to be updated to
-  handle reading a *sub-CAs* CRLIP configuration from the database,
-  or to infer it from known sub-CA details.  For the top-level CA,
-  the existing behaviour will be retained.
-
-- If a single ``CertificateAuthority`` instance is used for all CAs
-  in an instance, the above process will be repeated for each CA.
-  The existing ``mMasterCRLIssuePoint`` reference will be changed to
-  a mappings of each CA to its master/full CRLIP and its
-  ``ICRLPublisher``, and a number of methods signatures would have
-  to be updated with a parameter for the caller to nominate the CA
-  whose CRL(s) to work with.
-
-**TODO: more detail**
+initialising a CA's CRLIPs.  This method needs to be updated to read
+lightweight CAs' CRLIP configuration from the database (or infer it
+from other data).  For the top-level CA, the existing behaviour
+shall be retained.
 
 
 REST API
 ^^^^^^^^
 
-**TODO**
+**TODO** document the REST API (already designed/implemented)
 
 
 OCSP considerations
@@ -1120,3 +1175,9 @@ Also, one extra step that can be taken is to generate a nonce
 encrypted with the transport cert and receive it back encrypted with
 the "master of the moment"s own transport cert to ensure that the
 caller indeed has the transport cert/keys.
+
+
+References
+==========
+
+* [[PKI CA Authority CLI]]
