@@ -682,3 +682,116 @@ other profiles:
 This proposal was deemed to be out of scope with respect to current
 requirements but fundamentally compatible with this proposal, and
 was therefore deferred.
+
+
+Troubleshooting
+===============
+
+LDAP-based profiles mean that there are more moving parts and
+different kinds of errors are possible.  This section is designed to
+help you troubleshoot issues that may be related to the LDAP
+profiles subsystem.
+
+Which profile subsystem is used by default?
+-------------------------------------------
+
+By default, PKI is configured to use the ``ProfileSubsystem`` class
+which uses file-backed profiles.
+
+When deployed as part of FreeIPA, since FreeIPA 4.2 (RHEL 7.2) the
+``LDAPProfileSubsystem`` class is used.  The FreeIPA 4.2 upgrade
+process switches deployed CA instances over the
+``LDAPProfileSubsystem`` and imports profiles into the database.
+There were a couple of bugs in the upgrade/migration procedure that
+could result in missing profiles:
+
+- https://bugzilla.redhat.com/show_bug.cgi?id=1284803
+- https://bugzilla.redhat.com/show_bug.cgi?id=1300252
+
+
+Identifying the profile subsystem currently in use
+--------------------------------------------------
+
+Execute::
+
+  % grep subsystem.1.class /var/lib/pki/pki-tomcat/ca/conf/CS.cfg
+
+The output indicates the subsystem in use, e.g.::
+
+  subsystem.1.class=com.netscape.cmscore.profile.LDAPProfileSubsystem
+
+
+Listing which profiles are present in the database
+--------------------------------------------------
+
+To see which profiles are present in the database, execute::
+
+  % ldapsearch -D "cn=Directory Manager" -w $DM_PASSWORD \
+    -b "ou=certificateProfiles,ou=ca,$BASEDN" -s one cn
+
+(Replace ``$DM_PASSWORD`` and ``$BASEDN`` with the appropriate
+values.  When deployed with FreeIPA, the base DN is ``o=ipaca``.)
+
+If the ``LDAPProfileSubsystem`` is being used, the output should
+show ~60 profiles.
+
+If the output is::
+
+  # extended LDIF
+  #
+  # LDAPv3
+  # base <ou=certificateProfiles,ou=ca,o=ipaca> with scope oneLevel
+  # filter: (objectclass=*)
+  # requesting: cn 
+  #
+
+  # search result
+  search: 2
+  result: 32 No such object
+  matchedDN: ou=ca,o=ipaca
+
+  # numResponses: 1
+
+Then the ``ou=certificateProfiles,...`` container is missing.
+
+If the output is::
+
+  # extended LDIF
+  #
+  # LDAPv3
+  # base <ou=certificateProfiles,ou=ca,o=ipaca> with scope oneLevel
+  # filter: (objectclass=*)
+  # requesting: cn 
+  #
+
+  # search result
+  search: 2
+  result: 0 Success
+
+  # numResponses: 1
+
+Then there are no profile entries present at the correct location in
+the database.
+
+
+Triggering LDAP profile import with FreeIPA
+-------------------------------------------
+
+Prior to the fix for `bz1300252`_ being released, you can trigger
+the migration of profiles into LDAP to be attempted again.
+
+.. _bz1300252: https://bugzilla.redhat.com/show_bug.cgi?id=1300252
+
+Edit ``/var/lib/pki/pki-tomcat/ca/conf/CS.cfg`` and replace the
+line::
+
+    subsystem.1.class=com.netscape.cmscore.profile.LDAPProfileSubsystem
+
+with::
+
+    subsystem.1.class=com.netscape.cmscore.profile.ProfileSubsystem
+
+Then execute `ipa-server-upgrade`.  The upgrade program should
+observe that LDAP-based profiles are not enabled, re-enable the
+LDAPProfileSubsystem and migrate all file-based profiles into the
+database.
