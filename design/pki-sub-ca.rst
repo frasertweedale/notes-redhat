@@ -516,18 +516,13 @@ REST API
 OCSP considerations
 ~~~~~~~~~~~~~~~~~~~
 
-The existing OCSP responder will be used to obtain status
-information for certificates issued by sub-CAs.
+The existing OCSP responder (part of the CA subsystem) will be used
+to obtain status information for certificates issued by lightweight
+CAs.
 
-In the initial phase of implementation, the OCSP responder will look
-for the ``caRef`` GET parameter and use it to route the request to
-the appropriate CA.  This necessitates that the
-AuthorityKeyInformation extension be update to include this
-parameter in the responder URI.
-
-It is feasible (but more work) to avoid the ``caRef`` parameter
-because OCSP requests identify both the issuing authority and the
-serial number of the certificate being checked::
+OCSP requests contain a sequence of ``CertID`` values, each of which
+identifies an issuing authority and the serial number of the
+certificate being checked::
 
    CertID          ::=     SEQUENCE {
        hashAlgorithm       AlgorithmIdentifier,
@@ -535,12 +530,12 @@ serial number of the certificate being checked::
        issuerKeyHash       OCTET STRING, -- Hash of issuer's public key
        serialNumber        CertificateSerialNumber }
 
-This approach will require building (perhaps lazily) maps of names
-or key hashes to their corresponding ``CertificateAuthority``
-objects (or else there will be a linear lookup cost on each
-request).  Mappings will have to be keyed by ``hashAlgorithm`` as
-well as the hash value.  See *OCSP signer lookup* below for more
-details on this approach.
+The ``issuerKeyHash`` of the first ``CertID`` in an OCSP request is
+used to locate the appropriate ``CertificateAuthority`` to which to
+direct the OCSP request.  If no authority can be found, the result
+is **404 Not Found**.  If an authority is found, the ``CertStatus``
+response for any ``CertID`` identifying a different authority will
+be ``unknown``.
 
 
 Revocation check
@@ -578,32 +573,6 @@ find the CRL for the issuing authority of the certificate being
 checked.  Since this cost is only incurred on a CRLIP cache miss,
 performance for a large number of sub-CAs/CRLs should be profiled,
 and optimisation attempted only if the performance is unacceptable.
-
-
-OCSP signer lookup
-^^^^^^^^^^^^^^^^^^
-
-OCSP ``ResponseData`` signing is performed by the ``sign`` method of
-the ``OCSPAuthority`` class.
-
-An OCSP request can contain multiple ``CertID`` objects, and these
-could potentially refer to different authorities.  Therefore, the
-first ``CertID`` in the request referring to a known CA or sub-CA
-will cause that CA's OCSP signing certificate to be used for signing
-the OCSP response.  If none of the ``CertID`` objects in the request
-refer to a known CA, the top-level CA's OCSP signing certificate
-will be used to sign the OCSP response.
-
-``CertID`` objects are included in the OCSP ``ResponseData``, so no
-changes to the ``OCSPAuthority.sign(ResponseData rd)`` method
-signature are needed to convey this information to the signing
-method.
-
-**TODO: define the procedure to determine if a CertID corresponds to
-a known CA or sub-CA.**
-
-**TODO: define the procedure for locating/loading the OCSP signing
-certificate / ``SigningUnit`` for a given CA or sub-CA.**
 
 
 HTTP interface
