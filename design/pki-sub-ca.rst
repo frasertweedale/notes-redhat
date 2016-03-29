@@ -769,12 +769,19 @@ sub-CA.
 Major configuration options and enablement
 ------------------------------------------
 
-A single, instance-wide configuration value should enable or disable
-the *creation* of sub-CAs.  The ``pkispawn(8)`` configuration format
-should be updated to provide a way to control this configuration
-when deploying an instance.
+The *features* facility shall be used to enable or disable the
+*creation* of lightweight CAs.  The relevant configuration in
+``CS.cfg`` shall be::
 
-**TODO** should we default on/off for new instances?
+  features.authority.description=Lightweight CAs
+  features.authority.enabled=true
+  features.authority.version=1.0
+
+Instances shall default to enabling the creation of lightweight CAs.
+
+The ``pkispawn(8)`` configuration format should be updated to
+provide a way to control this configuration when deploying an
+instance.
 
 
 Cloning
