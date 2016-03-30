@@ -34,16 +34,24 @@ in Fedora 21.
 Terminology
 ~~~~~~~~~~~
 
-*primary CA*
+*host CA*
   The existing signing capability of the CA subsystem and associated
-  keys, certificates and data.  Put another way, this is the
+  key(s), certificates and data.  Put another way, this is the
   "highest-level" CA in a Dogtag instance, which may or may not be a
   root CA.
 
+*lightweight CA*
+  A signing capability and associated key(s), certificates and data,
+  which is hosted in the CA subsystem alongside the host CA.
+
 *sub-CA*
-  A signing capability and associated keys, certificates and data,
-  which will exist as a new capability of CA subsystem and which has
-  the primary CA as an authority in its certification chain.
+  A lightweight CA that is certified by the host CA or by another
+  sub-CA.
+
+*authority ID*
+  A UUID identifying a CA.  All lightweight CAs and the host CA have
+  an authority ID.  In records that may include an authority ID, the
+  absense of an authority ID typically implies the host CA.
 
 *subsystem*
   A Dogtag instance subsystem, i.e. that which is created by
@@ -121,16 +129,16 @@ necessary in order to begin using a new sub-CA.
 Some activities require special attention to ensure that sub-CAs
 continue to work:
 
-- Root / top-level CA chain of trust changes
-- Key rotation of the top-level CA or an intermediary
+- Root / host CA chain of trust changes
+- Key rotation of the host CA or an intermediate CA.
 
 
 Hosting unrelated CAs / sub-CAs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For FreeIPA 4.2 the requirement is only for sub-CAs directly
-subordinate to the top-level CA.  In future releases we want Dogtag
-to support multiple *independent* CAs.
+subordinate to the host CA.  In future releases we want Dogtag to
+support multiple *independent* CAs hosted in a single instance.
 
 Of this use case, Dmitri wrote:
 
@@ -351,7 +359,7 @@ clones that possess the signing key in the authority's LDAP entry.
 '''''''''''''''''''''''''''
 
 The ``IPACustodiaKeyRetriever`` class will be the default
-``KeyRetriever`` implementation used deployments of Dogtag as part
+``KeyRetriever`` implementation used in deployments of Dogtag as part
 of FreeIPA.  It will invoke a helper program written in Python that
 use FreeIPA's ``CustodiaClient`` class to retrieve keys.  Dogtag's
 Kerberos keytab will be used for authentication.
@@ -403,67 +411,39 @@ wish.
 Database schema
 ~~~~~~~~~~~~~~~
 
+Authorities
+^^^^^^^^^^^
+
+**TODO** detail authority schema (already implemented)
+
+
 Certificate and revocation requests
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Certificate issuance and revocation requests are currently stored in
-a single "queue" at ``cn=<N>,ou=ca,ou=requests,{rootSuffix}``.  The
-single queue will continue to be used (shared by the top-level CA
-and all sub-CAs) but the data stored for a queue will now include a
-reference to the sub-CA (if any) to which the request is directed.
+a single queue at ``cn=<N>,ou=ca,ou=requests,{rootSuffix}``.  The
+single queue will continue to be used (shared by the host CA and all
+lightweight CAs) but the data stored for a queue will now optionally
+include the authorityId to which the request is directed.
 
 Request objects have the ``extensibleObject`` object class, so the
 existing ``setExtData`` and ``getExtDataInString`` facility will be
-used to store a ``String`` sub-CA reference, using the key
-``req_authority_ref``.
+used to store the authority ID, using the key ``req_authority_ref``.
 
 
 Certificate repository
 ^^^^^^^^^^^^^^^^^^^^^^
 
-A design decision was made as to whether to use a single, shared
-*certificate repository* for all CAs (including sub-CAs) within a CA
-subsystem, or whether each CA within a CA subsystem should have a
-distinct certificate repository.
-
-The certificate repository for a CA subsystem is located at
-``ou=certificateRepository,ou=ca,{rootSuffix}``, an object of the
-``top`` and ``repository`` object classes.  This object shall be
-referred to as the *primary repository*.  Sub-CAs will be located
-beneath the primary repository, having the same object classes as
-the primary repository.  The OU of a *sub-repository* will be the
-sub-CA ID.  Therefore, the DN for a sub-CA's certificate repository
-is ``ou={subCAId},ou=certificateRepository,ou=ca,{rootSuffix}``.
-
-Although not an initial requirement, this approach accomodates
-nested sub-CAs to an arbitrary depth.
-
-Certificate records themselves have as their final path component
-``cn={serialNo}`` and the object class ``certificateRecord``, so
-various kinds of LDAP searches are easily supported, including:
-
-- all certificates, by searching in the *primary repository* DN with
-  ``SCOPE_SUB`` and filter ``(objectClass=certificateRecord)``.
-
-- only certificates issued by a particular CA or sub-CA, by
-  searching in the relevant repository's DN with ``SCOPE_ONE`` and
-  filter ``(objectClass=certificateRecord)``.
-
-
-Serial number considerations
-''''''''''''''''''''''''''''
-
-If sequential serial numbers are used, serial numbers of
-certificates issued by sub-CAs can collide with serial numbers of
-certificates issued by other CAs - parent, siblings or children.
-This may also occur if random serial numbers are used, although it
-is less likely.
+The single, existing *certificate repository* shall be used for all
+CAs.  The issuer DN shall be stored in certificate records and
+indexed to facilitate efficient filtering of certificates by issuer
+in LDAP searches.
 
 
 CRL considerations
 ~~~~~~~~~~~~~~~~~~
 
-The ``MasterCRL`` CRL is (by default) signed by the top-level CA.
+The ``MasterCRL`` CRL is (by default) signed by the host CA.
 CRLs can be signed either by the issuing CA, or by a certificate
 issued by the issuing CA that contains the ``crlSign`` key usage.
 
@@ -484,10 +464,10 @@ https://fedorahosted.org/pki/ticket/1627
 Schema
 ^^^^^^
 
-CRLs for the top-level CA are located at
+CRLs for the host CA are located at
 ``cn=<CRL_id>,ou=crlIssuingPoints,ou=ca,{rootSuffix}``.
 
-Sub-CA CRLIPs will be located beneath the top-level CRLIP OU, in an
+Sub-CA CRLIPs will be located beneath the host CA's CRLIP OU, in an
 OU named for the sub-CA ID.  Therefore, a sub-CA's CRLIP OU will be
 have the DN ``ou={subCAId},ou=crlIssuingPoints,ou=ca,{rootSuffix}``,
 with CRLs located beneath that.
@@ -503,7 +483,7 @@ Publishing
 The ``CertificateAuthority.initCRL()`` method is responsible for
 initialising a CA's CRLIPs.  This method needs to be updated to read
 lightweight CAs' CRLIP configuration from the database (or infer it
-from other data).  For the top-level CA, the existing behaviour
+from other data).  For the host CA, the existing behaviour
 shall be retained.
 
 
@@ -730,40 +710,31 @@ awareness of its position in the CA heirarchy, and to initialise the
 DNs, nicknames, etc.
 
 
-``AuthInfoAccessExtDefault``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The *Authority Information Access* extension shall include the
-``caRef`` parameter in the OCSP responder URI (see the OCSP
-discussion above).  This is accomplished by reading the sub-CA
-reference from the request and if not null, appending a query
-parameter to the responder URI.
-
-
 ``AuthorityKeyIdentifierExtDefault``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The *Authority Key Identifier* extension must identify the immediate
-signing authority, which could be a sub-CA.  Accordingly, the sub-CA
-reference reference is read from the request data and used to query
-the top-level CA for the appropriate sub-CA.
+signing authority, which could be a sub-CA.  Accordingly, the
+authority ID is read from the request data and used to query the
+host CA for the corresponding lightweight CA, whose identifier shall
+be included in the extension.
 
 
 Servlets and web interface
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Servlets and web templates (HTML, javascript) will be update to
-recognise and propagate the ``caRef`` request parameter, which
-indicates a sub-CA.  If the parameter is absent or empty, the
-top-level CA is implied.
+recognise and propagate the ``authorityId`` request parameter, which
+indicates a lightweight CA.  If the parameter is absent or empty,
+the host CA is implied.
 
 Care must be taken in JavaScript code to ensure that ``null`` values
-for the ``caRef`` parameter do not result in a literal string value
+for the ``authorityId`` parameter do not result in a literal string value
 of ``"null"``.  This case should be handle by either using the empty
 string or omitting the parameter from the subsequent request.
 
-Where appropriate, web forms should include a field for specify a
-sub-CA.
+Where appropriate, web forms shall include a field (e.g. drop-down
+menu) to select an authority.
 
 
 Major configuration options and enablement
@@ -787,9 +758,9 @@ instance.
 Cloning
 -------
 
-When a clone is spawned, all sub-CA private signing keys (including
-CRL/OCSP signing keys) must be made available to the clone, in
-addition to the top-level CA signing key.
+There are no special provisions for cloning.  Lightweight CA signing
+keys shall be replicated via the ``KeyReplicator`` mechanism
+described previously.
 
 
 Upgrading
