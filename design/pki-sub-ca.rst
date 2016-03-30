@@ -414,7 +414,50 @@ Database schema
 Authorities
 ^^^^^^^^^^^
 
-**TODO** detail authority schema (already implemented)
+LDAP entries representing authorities (both lightweight CAs and the
+host CA) shall belong to the ``authority`` object class, which is
+defined by the following schema::
+
+  attributeTypes: (
+    authorityID-oid NAME 'authorityID' DESC 'Authority ID'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.40 SINGLE-VALUE X-ORIGIN 'user defined' )
+
+  attributeTypes: (
+    authorityKeyNickname-oid NAME 'authorityKeyNickname' DESC 'Authority key nickname'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.44 SINGLE-VALUE X-ORIGIN 'user-defined' )
+
+  attributeTypes: (
+    authorityParentID-oid NAME 'authorityParentID' DESC 'Authority Parent ID'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.40 SINGLE-VALUE X-ORIGIN 'user defined' )
+
+  attributeTypes: (
+    authorityEnabled-oid NAME 'authorityEnabled' DESC 'Authority Enabled'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.7 SINGLE-VALUE X-ORIGIN 'user defined' )
+
+  attributeTypes: (
+    authorityDN-oid NAME 'authorityDN' DESC 'Authority DN'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.12 SINGLE-VALUE X-ORIGIN 'user defined' )
+
+  attributeTypes: (
+    authorityParentDN-oid NAME 'authorityParentDN' DESC 'Authority Parent DN'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.12 SINGLE-VALUE X-ORIGIN 'user defined' )
+
+  attributeTypes: (
+    authorityKeyHost-oid NAME 'authorityKeyHost' DESC 'Authority Key Hosts'
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 X-ORIGIN 'user defined' )
+
+  objectClasses: (
+    authority-oid NAME 'authority' DESC 'Certificate Authority' SUP top STRUCTURAL
+    MUST ( cn $ authorityID $ authorityKeyNickname $ authorityEnabled $ authorityDN )
+    MAY ( authorityParentID $ authorityParentDN $ authorityKeyHost $ description )
+    X-ORIGIN 'user defined' )
+
+
+Authority entries shall be stored under an ``organizationalUnit``
+named ``ou=authorities,ou=ca,$BASEDN``.
+
+The DN of an authority entry shall be
+``cn=$AUTHORITY_ID,ou=authorities,ou=ca,$BASEDN``.
 
 
 Certificate and revocation requests
