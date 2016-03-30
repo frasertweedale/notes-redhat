@@ -236,22 +236,103 @@ will also be stored in the NSS DB, with the key nickname recorded in
 LDAP for locating the correct key.
 
 
-Sub-CA objects and initialisation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Lightweight CA objects and initialisation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In Java, a sub-CA will be an instance of ``CertificateAuthority``
-(or in the case of substantial implementation differences between
-the primary CA and sub-CAs, a subclass thereof).
+In Java, a lightweight CA shall be an instance of
+``CertificateAuthority`` (and, by extension, an implementation of
+the ``ICertificateAuthority`` interface).
 
 The (single) ``CertificateAuthority`` in the current system is a CMS
-subsystem, and the "entry point" to signing behaviour and the
+subsystem; the "entry point" to signing behaviour and the
 certificate repository is via ``CMS.getSubsystem(SUBSYSTEM_CA)``.
 Therefore, new behaviour will be added to ``CertificateAuthority``
-for it to locate and initialise sub-CAs, and methods added to
-provide access to the sub-CAs (which are also instances of
-``CertificateAuthority``).
+for it to locate and initialise lightweight CAs, and methods added
+to ``ICertificateAuthority`` to provide access to the lightweight
+CAs.
 
-**TODO:** document the API (which has already been designed/implemented)
+The following methods shall be added to the
+``ICertificateAuthority`` interface::
+
+    /**
+     * Enumerate all authorities, including host authority.
+     */
+    public List<ICertificateAuthority> getCAs();
+
+    /**
+     * Return whether this CA is the host authority (not a
+     * lightweight authority).
+     */
+    public boolean isHostAuthority();
+
+    /**
+     * Get the AuthorityID of this CA.
+     */
+    public AuthorityID getAuthorityID();
+
+    /**
+     * Get the AuthorityID of this CA's parent CA, if available.
+     */
+    public AuthorityID getAuthorityParentID();
+
+    /**
+     * Return whether CA is enabled.
+     */
+    public boolean getAuthorityEnabled();
+
+    /**
+     * Return whether CA is ready to perform signing operations.
+     */
+    public boolean isReady();
+
+    /**
+     * Return CA description.  May be null.
+     */
+    public String getAuthorityDescription();
+
+    /**
+     * Get the CA by ID.  Returns null if CA not found.
+     */
+    public ICertificateAuthority getCA(AuthorityID aid);
+
+    /**
+     * Get the CA by DN.  Returns null if CA not found.
+     */
+    public ICertificateAuthority getCA(X500Name dn);
+
+    /**
+     * Create a new sub-CA under the specified parent CA.
+     */
+    public ICertificateAuthority createCA(
+            IAuthToken authToken,
+            String dn, AuthorityID parentAID, String desc)
+        throws EBaseException;
+
+    /**
+     * Create a new sub-CA IMMEDIATELY beneath this one.
+     *
+     * This method DOES NOT add the new CA to caMap; it is the
+     * caller's responsibility.
+     */
+    public ICertificateAuthority createSubCA(
+            IAuthToken authToken,
+            String dn, String desc)
+        throws EBaseException;
+
+    /**
+     * Update authority configurables.
+     *
+     * @param enabled Whether CA is enabled or disabled
+     * @param desc Description; null or empty removes it
+     */
+    public void modifyAuthority(Boolean enabled, String desc)
+        throws EBaseException;
+
+    /**
+     * Delete this lightweight CA.
+     */
+    public void deleteAuthority()
+        throws EBaseException;
 
 
 Initialisation
