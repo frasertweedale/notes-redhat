@@ -320,7 +320,7 @@ There are several options:
 
 1. Install ``pki-ipa-retrieve-key`` with ownership ``root:pkiuser``,
    and mode ``4750`` (setuid, execute for owner and group only).
-   The ``pki-ipa-key-retriever`` program shall drop privileges after
+   The ``pki-ipa-retrieve-key`` program shall drop privileges after
    reading the keys.
 
    The RPM spec file declaration to accomplish this is::
@@ -354,13 +354,13 @@ There are several options:
    Kerberos keytabs and Custodia keys for those principals, as part
    of the installation/upgrade process.
 
-**TODO** determine which path to take.
+**TODO: determine which of these options to implement**
 
 
-``pki-ipa-key-retriever`` program
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``pki-ipa-retrieve-key`` program
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The substance of the ``pki-ipa-key-retreiver`` program is as
+The substance of the ``pki-ipa-retrieve-key`` program is as
 follows::
 
   #!/usr/bin/python
