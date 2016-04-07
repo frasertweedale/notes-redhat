@@ -34,7 +34,7 @@
 
 
 {{Admon/important|Work in progress|This design is not complete yet.}}
-{{Feature|version=4.2.0|ticket=4559|author=Ftweedal}}
+{{Feature|version=4.4.0|ticket=4559|author=Ftweedal}}
 
 
 Overview
@@ -272,6 +272,127 @@ CA objects shall be stored in the container
 ``cn=cas,cn=ca,$SUFFIX``.
 
 **TODO** describe ca object class and new attributes (if any).
+
+
+Key replication
+---------------
+
+Dogtag lightweight CAs provide a pluggable key replication system.
+Integrators provide an implementation of the ``KeyRetriever``
+interface::
+
+  interface KeyRetriever {
+    /**
+     * Retrieve the specified signing key from specified host and
+     * store in local NSSDB.
+     *
+     * @return true if the retrieval was successful, otherwise false
+     */
+    boolean retrieveKey(String nickname, Collection<String> hostname);
+  }
+
+For FreeIPA, Dogtag will provide the ``IPACustodiaKeyRetriever``
+class, which implements the ``KeyRetriever`` interface.  It invokes
+a Python script that performs the retrieval, reusing existing
+FreeIPA Custodia client code.
+
+The Python script shall be installed at
+``/usr/libexec/pki-ipa-retrieve-key`` and shall be executed as
+``pkiuser``.
+
+
+Authenticating to Custodia
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Authenticating to Custodia involves both Kerberos (i.e. the client
+must have Kerberos credentials) and Custodia-specific signing keys,
+the public parts of which are published in LDAP as
+``ipaPublicKeyObject`` objects and associated with client principal
+through the ``memberPrincipal`` attribute.
+
+For replica promotion, the Custodia client runs as ``root`` and uses
+the host keytab at ``/etc/krb5.keytab``, and Custodia keys stored at
+``/etc/ipa/custodia/server.keys``.
+
+``pkiuser`` does not have read access to either of these locations,
+so consideration must be given to how to authentication to custodia.
+There are several options:
+
+1. Install ``pki-ipa-retrieve-key`` with ownership ``root:pkiuser``,
+   and mode ``4750`` (setuid, execute for owner and group only).
+   The ``pki-ipa-key-retriever`` program shall drop privileges after
+   reading the keys.
+
+   The RPM spec file declaration to accomplish this is::
+
+      %attr(4750, root, pkiuser) %{_libexecdir}/pki-ipa-retrieve-key
+
+   The benefits of this approach is that no new principals or keys,
+   or copies of keys, need to be created or managed.
+
+   There is precedent for this approach in other programs, for
+   example, the ``cockpit-ws`` package installs the following file::
+
+      -rwsr-x---. 1 root cockpit-ws 27864 Mar  3 22:07 /usr/libexec/cockpit-session
+
+2. Copy the host keytab and Custodia keys to a location under
+   ``/etc/pki/pki-tomcat/``, readable by ``pkiuser``.
+
+   This approach does not need new principals but consideration must
+   be given to how to handle Custodia keys or the host principal's
+   Kerberos secret being rotated, because the secret material exists
+   in multiple places.  The installation and upgrade procedures
+   (which run as ``root``) must ensure that keys are put in the
+   right place.
+
+3. Create a new Kerberos principal for the Dogtag CA instance.  It's
+   keytab and Custodia keys will be located under
+   ``/etc/pki/pki-tomcat`` and be readable by ``pkiuser``.
+   ``pkiuser`` can manage key rotation itself.
+
+   This approach requires the creation of new principals, and
+   Kerberos keytabs and Custodia keys for those principals, as part
+   of the installation/upgrade process.
+
+**TODO** determine which path to take.
+
+
+``pki-ipa-key-retriever`` program
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The substance of the ``pki-ipa-key-retreiver`` program is as
+follows::
+
+  #!/usr/bin/python
+
+  import ConfigParser
+  import sys
+
+  from ipaplatform.paths import paths
+  from ipapython.secrets.client import CustodiaClient
+
+  conf = ConfigParser.ConfigParser()
+  conf.read(paths.IPA_DEFAULT_CONF)
+  hostname = conf.get('global', 'host')
+  realm = conf.get('global', 'realm')
+
+  servername = sys.argv[1]
+  keyname = "ca/" + sys.argv[2]
+
+  client_keyfile = ... # TO BE DETERMINED
+  client_keytab = ... # TO BE DETERMINED
+
+  client = CustodiaClient(
+      client=hostname, server=servername, realm=realm,
+      ldap_uri="ldaps://" + hostname,
+      keyfile=client_keyfile, keytab=client_keytab,
+      )
+
+  ... # drop privileges if required (TO BE DETERMINED)
+
+  client.fetch_key(keyname, store=True)
+
+
 
 
 Installation
