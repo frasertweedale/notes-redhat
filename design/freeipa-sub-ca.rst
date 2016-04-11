@@ -364,6 +364,23 @@ follows::
 Installation
 ------------
 
+Set up Dogtag key replication
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The CA installation process shall perform the following new steps:
+
+- Create the ``dogtag-ipa-custodia/$HOSTNAME`` service principal
+- Create Custodia keys for the principal and store them at the
+  location declared above.
+- Retrieve the keytab for the principal to the location declared
+  above.
+- Make ``IPACustodiaKeyRetriever`` the configured key retriever in
+  ``CS.cfg``.
+
+
+Default CAs
+^^^^^^^^^^^
+
 ``ipa-server-install`` need not initially create any sub-CAs, but
 see the "Default sub-CAs" use case for a suggested future direction.
 
@@ -579,7 +596,10 @@ Upgrade
 
 As part of the upgrade process:
 
-- The schema will be updated.
+- Dogtag key replication shall be configured using the steps
+  described at `Set up Dogtag key replication`_.
+
+- The schema (including Dogtag schema) will be updated.
 
 - Any essential/default sub-CAs will be created, and relevant
   certificates issued.
