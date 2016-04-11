@@ -405,14 +405,38 @@ and the corresponding LDAP entry is seen by the persistent search).
 
 ::
 
-  interface KeyRetriever {
-    /**
-     * Retrieve the specified signing key from specified host and
-     * store in local NSSDB.
-     *
-     * @return true if the retrieval was successful, otherwise false
-     */
-    boolean retrieveKey(String nickname, Collection<String> hostname);
+  public interface KeyRetriever {
+      /**
+       * Retrieve the specified signing key from specified host and
+       * return to the KeyRetrieverRunner.
+       *
+       * A KeyRetriever MUST NOT import the cert and key to the NSSDB
+       * itself.  It SHALL, if successful in retrieving the key and
+       * certificate, return a Result which contains a DER-encoded
+       * PKCS #12 object and the password for importing the
+       * certificates and keys contained within the PKCS #12 object.
+       *
+       * Upon failure the KeyRetriever SHALL return null.
+       */
+      Result retrieveKey(String nickname, Collection<String> hostname);
+
+      class Result {
+          private String password;
+          private byte[] pkcs12;
+
+          public Result(String password, byte[] pkcs12) {
+              this.password = password;
+              this.pkcs12 = pkcs12;
+          }
+
+          public String getPassword() {
+              return password;
+          }
+
+          public byte[] getPKCS12() {
+              return pkcs12;
+          }
+      }
   }
 
 Each lightweight authority LDAP entry shall contain an multi-valued
@@ -422,7 +446,7 @@ shall retrieve these hostnames and subsequently pass them to the
 
 The ``KeyRetriever`` class to be used is configured in ``CS.cfg``.
 The configuration key shall be
-``feature.authority.keyRetrieverClass``
+``features.authority.keyRetrieverClass``
 
 Dogtag then spawns a thread that invokes the ``retrieveKey`` method
 of the configured ``KeyRetriever`` class.  (It is fine for the
@@ -430,10 +454,12 @@ of the configured ``KeyRetriever`` class.  (It is fine for the
 during the execution of the ``retrieveKey`` method shall be caught
 and logged.
 
-If the ``retrieveKey`` method returns ``true``, then ``SigningUnit``
-initialisation is restarted.  If the ``SigningUnit`` initialisation
-now completes successfully, the clone adds itself to the list of
-clones that possess the signing key in the authority's LDAP entry.
+If the ``retrieveKey`` method returns a non-``null`` ``Result`` then
+the keys and certificates in the ``Result`` are imported, and
+initialisation of the ``SigningUnit`` is attempted.  If the
+``SigningUnit`` initialisation is successful, the clone adds itself
+to the list of clones that possess the signing key in the
+authority's LDAP entry.
 
 
 ``IPACustodiaKeyRetriever``
@@ -442,16 +468,12 @@ clones that possess the signing key in the authority's LDAP entry.
 The ``IPACustodiaKeyRetriever`` class will be the default
 ``KeyRetriever`` implementation used in deployments of Dogtag as part
 of FreeIPA.  It will invoke a helper program written in Python that
-use FreeIPA's ``CustodiaClient`` class to retrieve keys.  Dogtag's
-Kerberos keytab will be used for authentication.
+use FreeIPA's ``CustodiaClient`` class to retrieve keys.
 
-The Kerberos principal used for authenticating shall be
-``dogtag/HOSTNAME@REALM``.  The principal must be authorised to
-retrieve ``ca`` keys from Custodia.
+Details of the implementation of the Python helper program are
+contained in the `FreeIPA Sub-CAs design page`_.
 
-The principal's keytab shall be stored at
-``/var/lib/pki/pki-tomcat/ca/conf/dogtag.keytab`` with ownership
-``pkiuser:pkiuser`` and mode ``0600``.
+.. _FreeIPA Sub-CAs design page: http://www.freeipa.org/page/V4/Sub-CAs
 
 
 Behaviour when signing keys are not present
