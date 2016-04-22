@@ -33,7 +33,15 @@ proposes a measure to, where appropriate, copy the contents of the
 CN into the subjectAltName extension as a dNSName, resulting in an
 RFC 2818-compliant certificate.
 
+`RFC 6125 - Best Practices for Checking of Server Identities in the
+Context of Transport Layer Security (TLS)`_ further clarifies that
+certificates SHOULD include a DNS-ID and that CAs SHOULD NOT issue
+certificates with a CN-ID unless another specification explicitly
+requires or encourages it.  RFC 6125 has greater scope than this
+design, all work for this design should comply with RFC 6125.
+
 .. _RFC 2818 - HTTP Over TLS: http://tools.ietf.org/html/rfc2818#section-3.1
+.. _RFC 6125 - Best Practices for Checking of Server Identities in the Context of Transport Layer Security (TLS): https://tools.ietf.org/html/rfc6125
 
 
 `RFC 5280`_ defines the maximum length of the CN to be 64 characters
@@ -218,12 +226,14 @@ in particular).  This will be achieved with the following changes.
 - For hosts and services, the CN, if present, is appended to the
   list of *DNS names*.
 
-- For each dNSName in the subjectAltName extension, in addition to
-  the existing checks, append the value to the list of *DNS names*.
+- For each dNSName in the subjectAltName extension, ensure that the
+  name corresponds to a principal that is *managed by* the target
+  principal, then append the name to the list of *DNS names*.
 
 - For hosts and services, after processing of the SAN extension is
-  complete, ensure that one element of the *DNS names* list matches
-  the principal name.
+  complete, ensure that one name in the *DNS names* list matches the
+  target principal.  This is to prevent issuance of a certificate
+  that omits the target principal.
 
 
 Wildcard certificates
@@ -253,6 +263,13 @@ Feature Management
 ==================
 
 No UI or CLI is required to manage these features.
+
+The ``certutil`` instructions "New certificate for Host/Service"
+dialog in the Web UI should be updated to indicate how to add a
+DNS names to the subjectAltName request extension, e.g.::
+
+  # certutil -R -d <database path> -a -g <key size>
+    -s 'CN=f23-2.ipa.local,O=IPA.LOCAL' -8 'f23-2.ipa.local'
 
 The new Dogtag profile policy components must be documented so that
 administrators can understand their purpose and how to use them in
