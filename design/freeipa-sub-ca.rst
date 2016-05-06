@@ -362,6 +362,68 @@ follows::
   # ... further processing of received keys
 
 
+Renewal
+-------
+
+A mechanism must be provided to renew lightweight CA certificates.
+A Dogtag REST API shall be provided for renewal of the certificate.
+When and how renewal occurs, possible approaches include:
+
+1. No automatic renewal is performed.  Provide the ``ipa ca-renew``
+   command to invoke the REST API and renew the sub-CA certificate.
+   Renewal need not be performed on the renewal master.
+
+   Implementation of an ``ipa ca-renew`` command is compatible with
+   the remaining options; it would allowing a privileged user to
+   force renewal of a certificate regardless of the prevailing
+   auto-renewal mechanism (if any).
+
+2. Implement a thread in Dogtag that renews lightweight CA
+   certificates as the existing certificates approach expiry.  Only
+   the renewal master would execute this thread.
+
+   Automatic renewal could be enabled on a per-CA basis.
+
+   The advantage of this approach is that the behaviour has no
+   dependency on other components; it can be implemented entirely
+   within Dogtag and can be used in standalone Dogtag deployments.
+
+   Disadvantages and caveats of this approach are:
+
+   - New code for tracking certificate expiry must be written,
+     duplicating functionality that already exists in Certmonger.
+
+   - The renewal thread must run on only one Dogtag instance (in
+     FreeIPA terms: the *renewal master*).  There is precedent with
+     CRL generation; ``ipa-csreplica-manager`` would be enhanced to
+     manage lightweight CA renewal configuration and an upgrade
+     script would be needed to add the required Dogtag configuration
+     on the renewal master.
+
+3. Track each lightweight CA certificate in Certmonger on the
+   renewal master, and implement a renewal helper for lightweight
+   CAs.
+
+   In this scenario, lightweight CA creation must always be
+   performed by the renewal master, which will establish tracking,
+   and promoting a CA replica to renewal master shall involve
+   tracking all FreeIPA-managed lightweight CA certificates.
+
+   The advantage of this approach is the reuse of existing machinery
+   in Certmonger for monitoring certificates and triggering renewal
+   when needed.
+
+   Disadvantages of this approach are:
+
+   - Proliferation of Certmonger tracking requests; one for each
+     FreeIPA-managed lightweight CA.
+
+   - Either lightweight CA creation is restricted to the renewal
+     master, or the renewal master must observe the creation of new
+     lightweight CAs and start tracking their certificate.
+
+   - Development of new Certmonger renewal helpers solely for
+     lightweight CA renewal.
 
 
 Installation
