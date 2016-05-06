@@ -687,12 +687,7 @@ How to Test
 Test Plan
 =========
 
-..
-  Test scenarios that will be transformed to test cases for FreeIPA
-  [[V3/Integration_testing|Continuous Integration]] during
-  implementation or review phase. This can be also link to
-  [https://git.fedorahosted.org/cgit/freeipa.git/ source in cgit] with
-  the test, if appropriate.
+[[V4/Sub-CAs/Test_Plan|Sub-CAs V4.4 test plan]]
 
 
 Dependencies
