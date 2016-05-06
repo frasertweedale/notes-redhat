@@ -145,10 +145,9 @@ Terminology
   A lightweight sub-CA in the Dogtag CA instance, and its
   representation in FreeIPA.
 
-*top-level CA*
+*top-level CA* or *host CA*
   The top-level CA in the Dogtag CA subsystem, as distinct from
-  any of its sub-CAs.  It may or may not be a root CA, but is the
-  most "senior" CA used by FreeIPA to issue certificates.
+  any of its sub-CAs.  It may or may not be a root CA.
 
 *FreeIPA-managed CA*
   A CA or sub-CA that was created by or via FreeIPA and has an
@@ -183,10 +182,14 @@ cases.
 Externally signed lightweight CAs
 '''''''''''''''''''''''''''''''''
 
-We would support partial creation of the CA to generate the key and
-a Certificate Signing Request (CSR) for submission to the external
-CA.  The signed certificate would then be imported to complete the
-process.
+We would support partial creation of the CA to generate the key in
+the NSSDB and yield a Certificate Signing Request (CSR) for
+submission to the external CA.  The signed certificate would then be
+imported to complete the process.
+
+Alternatively, we could simply accept a certificate and private
+signing key (e.g. in PKCS #12 format).  This approach is not
+mutually exclusive with the other - they can both be supported.
 
 The "upstream" root certificate and intermediate CA certificates
 would be stored in LDAP for distribution to clients, with the root
@@ -201,7 +204,7 @@ Self-signed lightweight CAs
 
 In this case, FreeIPA causes Dogtag to generate a new self-signed
 (root) CA.  The CA certificate would be stored in LDAP for
-distribution to clients, having and ``ipaKeyTrust`` value of
+distribution to clients, having an ``ipaKeyTrust`` value of
 ``trusted``.
 
 
