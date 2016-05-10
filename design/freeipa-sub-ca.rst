@@ -86,7 +86,7 @@ VPN authentication
 A FreeIPA-based tool could be implemented to request short-lived
 user certificates for the purpose of VPN authentication.  It would
 be inappropriate to accept as valid any client certificate issued by
-the top-level CA, so a sub-CA specifically for VPN authentication
+the host CA, so a sub-CA specifically for VPN authentication
 should be created for this purpose.  The certificate-issuing tool
 would direct certificates signing requests to the VPN sub-CA.
 
@@ -169,19 +169,18 @@ Nested sub-CAs
 ^^^^^^^^^^^^^^
 
 Nested sub-CAs (that is, more than a single level of sub-CAs beneath
-the primary CA in a Dogtag instance) are not an initial requirement
-(nor are they an initial requirement of the sub-CAs feature in
-Dogtag).  However, the schema and other aspects of the FreeIPA
-feature should take into account the possibility of nested sub-CAs
-as a future requirement.
+the primary CA in a Dogtag instance) are not an initial requirement,
+however, the schema and other aspects of the FreeIPA feature should
+take into account the possibility of nested sub-CAs as a future
+requirement.
 
 
 Externally signed and self-signed lightweight CAs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Initially all sub-CAs will be children of the top-level CA, but the
-sub-CAs feature should be designed mindfully of the possible future
-requirement of supporting multiple separate trust chains.
+Initially all sub-CAs will be children of the host CA, but the
+sub-CAs feature should be designed for the possible future
+requirement of supporting multiple independent trust chains.
 Additional work will be required in Dogtag to support these use
 cases.
 
@@ -199,9 +198,9 @@ signing key (e.g. in PKCS #12 format).  This approach is not
 mutually exclusive with the other - they can both be supported.
 
 The "upstream" root certificate and intermediate CA certificates
-would be stored in LDAP for distribution to clients, with the root
-CA having an ``ipaKeyTrust`` value of ``trusted`` and intermediate
-CAs having a value of ``unknown`` (see `CA certificate renewal`_).
+would be stored in LDAP for distribution to clients, with the IPA CA
+having an ``ipaKeyTrust`` value of ``trusted`` (see `CA certificate
+renewal`_).
 
 .. _CA certificate renewal: http://www.freeipa.org/page/V4/CA_certificate_renewal
 
@@ -245,34 +244,38 @@ for several reasons:
 The ``ca`` plugin defines these objects and the CRUD commands for
 finding, creating, modifying and deleting lightweight CAs.
 
+The ``ca`` plugin also provides an entry for the host authority, for
+consistency and to allow CA ACLs to explicitly reference the IPA CA.
+The entry for the host authority is automatically added on
+installation or upgrade.
+
 
 Certificate parameters
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Public key
-''''''''''
+Keygen parameters
+'''''''''''''''''
 
-**TODO** How much control over key parameters should be given for
-sub-CA creation?  We could default to the key size and type of the
-parent CA and provide an option to specify something different?
+Initially, 2048-bit RSA keys shall be supported.  Later work will
+implement the ability to specify key sizes and types when creating
+lightweight CAs.
+
 
 Subject Distinguished Name
 ''''''''''''''''''''''''''
 
-When creating a sub-CA, the subject DN is constructed by copying the
-DN of the parent CA, then setting the CN to the *name*.  More
-control could be implemented if there is a clear case for it.
+The Subject DN is user-specified and used as-is.
+
 
 Validity
 ''''''''
 
-The default validity could be the default validity used by
-``ipa-server-install``.  **TODO** what is the default duration?
+The default validity period of the Dogtag ``caCAcert`` profile shall
+be used (10 years).
 
-Specify the CA certificate validity.  Something human-friendly
-should be used, e.g. a duration spec that supports ``5y``,
-``365d``, etc.  **TODO** is there a precendent for this sort of
-duration interpretation in FreeIPA?  If so, be consistent.
+Future work could enable the use of different profiles for
+lightweight CA creation and/or allow direct control of the validity
+period.
 
 
 Schema
@@ -346,10 +349,10 @@ interface::
 
 For FreeIPA, Dogtag will provide the ``IPACustodiaKeyRetriever``
 class, which implements the ``KeyRetriever`` interface.  It invokes
-a Python script that performs the retrieval, reusing existing
-FreeIPA Custodia client code.
+a Python script that performs the retrieval, reusing the existing
+FreeIPA ``CustodiaClient`` class.
 
-The Python script shall be installed at
+The Python script (distributed with Dogtag) shall be installed at
 ``/usr/libexec/pki-ipa-retrieve-key`` and shall be executed as
 ``pkiuser``.
 
@@ -371,45 +374,21 @@ the host keytab at ``/etc/krb5.keytab``, and Custodia keys stored at
 so a new service principal shall be created for each Dogtag CA
 instance for the purpose of authenticating to Custodia and
 retrieving lightweight CA private keys.  Its principal name shall be
-``dogtag-ipa-custodia/<hostname>@REALM``.  Its keytab and
+``dogtag/<hostname>@REALM``.  Its keytab and
 Custodia keys shall be stored with ownership ``pkiuser:pkiuser`` and
-mode ``0600`` at ``/etc/pki/pki-tomcat/dogtag-ipa-custodia.keytab``
-and ``/etc/pki/pki-tomcat/dogtag-ipa-custodia.keys`` respectively.
+mode ``0600`` at ``/etc/pki/pki-tomcat/dogtag.keytab``
+and ``/etc/pki/pki-tomcat/dogtag.keys`` respectively.
 
 
-``pki-ipa-retrieve-key`` program
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Custodia store
+^^^^^^^^^^^^^^
 
-The essence of the ``pki-ipa-retrieve-key`` program is as
-follows::
-
-  #!/usr/bin/python
-
-  import ConfigParser
-  import sys
-
-  from ipaplatform.paths import paths
-  from ipapython.secrets.client import CustodiaClient
-
-  conf = ConfigParser.ConfigParser()
-  conf.read(paths.IPA_DEFAULT_CONF)
-  hostname = conf.get('global', 'host')
-  realm = conf.get('global', 'realm')
-
-  servername = sys.argv[1]
-  keyname = "ca/" + sys.argv[2]
-
-  client_keyfile = "/etc/pki/pki-tomcat/dogtag-ipa-custodia.keys"
-  client_keytab = "/etc/pki/pki-tomcat/dogtag-ipa-custodia.keytab"
-
-  client = CustodiaClient(
-      client=hostname, server=servername, realm=realm,
-      ldap_uri="ldaps://" + hostname,
-      keyfile=client_keyfile, keytab=client_keytab,
-      )
-
-  result = client.fetch_key(keyname, store=True)
-  # ... further processing of received keys
+The existing PKCS #12 Custodia store cannot be used for transporting
+lightweight CA signing keys, because if the Custodia client imports
+the keys to the destination NSSDB, Dogtag cannot observe them unless
+restarted, and Dogtag cannot unpack the PKCS #12 file because the
+bare private key would then be resident in the Dogtag process'
+memory, which is unacceptable from a security standpoint.
 
 
 Renewal
@@ -499,8 +478,8 @@ Default CAs
 ``ipa-server-install`` need not initially create any sub-CAs, but
 see the "Default sub-CAs" use case for a suggested future direction.
 
-A CA object for the top-level CA will initially be created, with DN
-``cn=.,ou=cas,cn=ca,$SUFFIX``.
+A CA object for the host CA will initially be created, with
+``cn=host-authority``.
 
 
 Implementation
@@ -593,11 +572,14 @@ See also the discussion above about *public key* parameters and
 ``ipa ca-del <NAME>``
 '''''''''''''''''''''
 
-Delete the given certificate authority.  This will remove knowledge
-of the CA from the FreeIPA directory but *will not delete the sub-CA
-from Dogtag*.  Dogtag will still know about the CA and the
-certificates it issued, be able to act at a CRL / OCSP authority for
-it, etc.
+Delete the given certificate authority; both the FreeIPA object and
+the Dogtag lightweight CA.
+
+It is not a requirement to revoke the certificate (other commands
+are available to do this).  Future work could add an option to
+perform revocation.
+
+Note: Dogtag prohibits the deletion of non-leaf CAs.
 
 
 ``ipa caacl-add-ca NAME``
@@ -655,17 +637,29 @@ Added option:
 
 New options:
 
-``ca``
+``--ca NAME``
   Specify the CA to which to direct the request.  Optional; default
   to the top-level CA.
+
+``--chain``
+  Instead of just the newly-issued leaf certificate, retrieve the
+  certificate chain ending in the new certificate.
 
 
 ``ipa cert-find``
 '''''''''''''''''
 
-The ``ipa cert-find`` command shall allow searching by issuer.
+The ``ipa cert-find`` command shall allow searching by issuer, via
+the following new arguments.
 
-**TODO** design needed.
+``--issuer <DN>``
+  Specify the issuer DN.
+
+``--ca <NAME>``
+  Specify a FreeIPA CA name.
+
+If none of these arguments is specified, the search will apply to
+all CAs.
 
 
 ``ipa cert-show``
@@ -686,13 +680,37 @@ Certmonger
 
 For *service* administration use cases, certificate chains will be
 delivered via certmonger, in accordance with the existing use
-pattern where ``ipa-getcert`` is used to retrieve and renew
+pattern where ``ipa-getcert`` is used to request, monitor and renew
 certificates.
+
+Indicating the target CA
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Certmonger will need to be told which FreeIPA CA to use.  (Note that
+this is different from Certmonger's "CA" concept; the ``IPA``
+Certmonger CA will be used regardless of which FreeIPA CA is to be
+used).
+
+To support this use case, a new Certmonger property shall be added,
+akin to the ``TEMPLATE_PROFILE`` property which is signalled via the
+``getcert request -T`` option.  A command line option shall be added
+for this option; if supplied, the value is recorded and used when
+Certmonger invokes ``ipa cert-request``.  No changes in FreeIPA are
+required.
+
+This option is potentially confusing in that there would be two "CA"
+options for ``getcert request`` - one for selecting a Certmonger CA
+and one to distinguish among CAs provided by a Certmonger CA.  The
+distinction will have be made clear in documentation.
+
+
+Certificate chain retreival
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 There are numerous certificate chain formats; common formats will be
 supported, and an option will be used to select the desired format.
 For uncommon formats, administrators will need to retrieve the chain
-in one of the common formats and manually compose what they need.
+in one of the supported formats and manually compose what they need.
 
 Common certificate chain formats:
 
@@ -701,7 +719,7 @@ Common certificate chain formats:
 - PKCS #12
 
 Apache and nginx expect a sequence of PEM-encoded certificates, so
-PEM could be minimal requirement.
+PEM is a baseline requirement.
 
 
 Configuration
