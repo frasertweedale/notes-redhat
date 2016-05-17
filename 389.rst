@@ -71,3 +71,20 @@ Schema
 The schema for an instance lives in
 ``/etc/dirsrv/slapd-<instance>/schema/``.  User-defined schema is in
 the file ``99user.ldif``.
+
+
+Replication
+-----------
+
+Turning on replication logging:
+
+Edit ``cn=config``
+
+Attribute: ``nsslapd-errorlog-level: 8192``
+
+(or mux 8192 into existing value)
+
+(Can be done online, e.g. via ldapvi)
+
+
+Error log: ``/var/log/dirsrv/slapd-<INSTANCE>/errors``
