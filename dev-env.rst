@@ -5,5 +5,6 @@ Fedora
 
 ::
 
-  git zsh tmux vim @buildsys-build
+  git zsh tmux vim the_silver_searcher @buildsys-build
+  ldapvi mozldap-tools
   util-linux-user (f24+; provides chsh)
