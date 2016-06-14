@@ -1,6 +1,5 @@
 ..
   notes:
-  delete ca
   certificate renewal for sub-CAs
   changing the chaining
     reuse what honza has done
@@ -18,13 +17,8 @@
     - storage: nssdb, pem file
       - need something else?  convert in post-save command
 
-  - dynamically add CA to certmonger
-
-  - add argument to ipa-getcert for specifying subca???
-  - wrapper for configuring getcert to know about / use sub-ca
-
 ..
-  Copyright 2014, 2015 Red Hat, Inc.
+  Copyright 2014, 2015, 2016 Red Hat, Inc.
 
   This work is licensed under a
   Creative Commons Attribution 4.0 International License.
@@ -605,7 +599,7 @@ Note: Dogtag has not yet implemented revocation on lightweight CA
 deletion.  The associated ticket is
 https://fedorahosted.org/pki/ticket/1638.  Until it is implemented,
 CA certificate revocation can be performed as an additional manual
-step, using existing command.
+step, using existing commands.
 
 Note: Dogtag prohibits the deletion of non-leaf CAs.
 
@@ -673,6 +667,11 @@ New options:
   Instead of just the newly-issued leaf certificate, retrieve the
   certificate chain ending in the new certificate.
 
+CA ACL enforcement shall be enhanced to take CAs into account.  For
+backwards compatibility with CA ACLs defined previously, CA ACLs
+that do not have a CA category and have no CAs shall behave as
+though the IPA CA alone was specified.
+
 
 ``ipa cert-find``
 '''''''''''''''''
@@ -684,21 +683,25 @@ the following new arguments.
   Specify the issuer DN.
 
 ``--ca <NAME>``
-  Specify a FreeIPA CA name.
+  Specify a FreeIPA CA name.  The behaviour is the same as if the
+  subject DN of the named CA had been specified via ``--issuer``.
 
-If none of these arguments is specified, the search will apply to
-all CAs.
+If both ``--issuer`` and ``--ca`` are given and the two DNs are
+not equal, the result of the search will be empty.
 
 
 ``ipa cert-show``
 '''''''''''''''''
 
 The ``ipa cert-show`` command shall have new options for specifying
-the CA whose certificate to show, and for retrieving the CA chain
-ending with the specified certificate.
+the issuer of the cert to show (in addition to the existing serial
+number argument), and for retrieving the CA chain ending with the
+specified certificate.
 
-``--ca=NAME``
-  Specify a CA.  Defaults to the IPA CA.
+``--ca <NAME>``
+  Specify the issuer of the certificate.  Defaults to the IPA CA.
+  If there is no certificate with the specified serial number issued
+  by the specified CA, the result is **not found**.
 
 ``--chain``
   Request the certificate chain (when saving via ``--out <file>``,
@@ -710,8 +713,8 @@ ending with the specified certificate.
 Certmonger
 ----------
 
-For *service* administration use cases, certificate chains will be
-delivered via certmonger, in accordance with the existing use
+For *service* administration use cases, certificates will be
+requested via certmonger, in accordance with the existing use
 pattern where ``ipa-getcert`` is used to request, monitor and renew
 certificates.
 
@@ -723,17 +726,18 @@ this is different from Certmonger's "CA" concept; the ``IPA``
 Certmonger CA will be used regardless of which FreeIPA CA is to be
 used).
 
-To support this use case, a new Certmonger property shall be added,
-akin to the ``TEMPLATE_PROFILE`` property which is signalled via the
-``getcert request -T`` option.  A command line option shall be added
-for this option; if supplied, the value is recorded and used when
-Certmonger invokes ``ipa cert-request``.  No changes in FreeIPA are
-required.
+To support this use case, the ``template-issuer`` property shall be
+added, and the ``-X`` / ``--issuer`` command line option shall be
+added to ``getcert request`` and related commands.
 
-This option is potentially confusing in that there would be two "CA"
-options for ``getcert request`` - one for selecting a Certmonger CA
-and one to distinguish among CAs provided by a Certmonger CA.  The
-distinction will have be made clear in documentation.
+If set, the ``template-issuer`` value shall be propagated to
+submission helpers in the ``CERTMONGER_CA_ISSUER`` environment
+variable.
+
+The FreeIPA submission helper shall, if the ``CERTMONGER_CA_ISSUER``
+environment variable is set, set the ``ca`` argument of the
+``cert-request`` method accordingly; otherwise, the ``ca`` argument
+shall be omitted.
 
 
 Certificate chain retreival
@@ -769,12 +773,9 @@ As part of the upgrade process:
 - Dogtag key replication shall be configured using the steps
   described at `Set up Dogtag key replication`_.
 
-- The schema (including Dogtag schema) will be updated.
+- The schema (including Dogtag schema) shall be updated.
 
-- Any essential/default sub-CAs will be created, and relevant
-  certificates issued.
-
-- ``admin`` will be assigned the *CA Administrator* role.
+- The ``ipa`` CA object shall be created (see `Default CAs`_).
 
 
 How to Test
@@ -799,6 +800,6 @@ Dependencies
 ============
 
 - FreeIPA `Certificate Profiles`_ feature.
-- Dogtag with sub-CA feature (slated for v10.3).
+- Dogtag >= 10.3.2
 
 .. _Certificate Profiles: http://www.freeipa.org/page/V4/Certificate_Profiles
