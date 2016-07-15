@@ -1,23 +1,4 @@
 ..
-  notes:
-  certificate renewal for sub-CAs
-  changing the chaining
-    reuse what honza has done
-
-  certmonger
-
-  - supports retrieving chain
-  - add cap to fetch chain in cert plugin in IPA
-  - different formats
-    - pre-save and post-save command
-    - req cert from CA
-    - exec pre-save
-    - save
-    - exec post-save
-    - storage: nssdb, pem file
-      - need something else?  convert in post-save command
-
-..
   Copyright 2014, 2015, 2016 Red Hat, Inc.
 
   This work is licensed under a
@@ -27,7 +8,6 @@
   work. If not, see <http://creativecommons.org/licenses/by/4.0/>.
 
 
-{{Admon/important|Work in progress|This design is not complete yet.}}
 {{Feature|version=4.4.0|ticket=4559|author=Ftweedal}}
 
 
@@ -778,16 +758,85 @@ As part of the upgrade process:
 - The ``ipa`` CA object shall be created (see `Default CAs`_).
 
 
-How to Test
-===========
+How to Use
+==========
 
-..
-  Easy to follow instructions how to test the new feature. FreeIPA
-  user needs to be able to follow the steps and demonstrate the new
-  features.
+Scenario: add a sub-CA that will be used to issue user smart cards.
+A profile for this purpose called ``userSmartCard`` is assumed to
+exist.
 
-  The chapter may be divided in sub-sections per [[#Use_Cases|Use
-  Case]].
+List lightweight CAs::
+
+  % ipa ca-find
+  ------------
+  1 CA matched
+  ------------
+    Name: ipa
+    Description: IPA CA
+    Authority ID: d3e62e89-df27-4a89-bce4-e721042be730
+    Subject DN: CN=Certificate Authority,O=IPA.LOCAL 201606201330
+    Issuer DN: CN=Certificate Authority,O=IPA.LOCAL 201606201330
+  ----------------------------
+  Number of entries returned 1
+  ----------------------------
+
+Add a new lightweight CA called ``sc``::
+
+  % ipa ca-add sc --subject "CN=Smart Card CA, O=IPA.LOCAL" --desc "Smart Card CA"
+  ---------------
+  Created CA "sc"
+  ---------------
+    Name: sc
+    Description: Smart Card CA
+    Authority ID: 660ad30b-7be4-4909-aa2c-2c7d874c84fd
+    Subject DN: CN=Smart Card CA,O=IPA.LOCAL
+    Issuer DN: CN=Certificate Authority,O=IPA.LOCAL 201606201330
+
+Add a CA ACL called ``user-sc-userSmartCard`` and through it
+associate all users, the ``sc`` CA, and ``userSmartCard`` profile.
+users::
+
+  % ipa caacl-add user-sc-userSmartCard --usercat=all
+  ------------------------------------
+  Added CA ACL "user-sc-userSmartCard"
+  ------------------------------------
+    ACL name: user-sc-userSmartCard
+    Enabled: TRUE
+    User category: all
+
+  % ipa caacl-add-ca user-sc-userSmartCard --ca sc
+    ACL name: user-sc-userSmartCard
+    Enabled: TRUE
+    User category: all
+    CAs: sc
+  -------------------------
+  Number of members added 1
+  -------------------------
+
+  % ipa caacl-add-profile user-sc-userSmartCard --certprofile userSmartCard
+    ACL name: user-sc-userSmartCard
+    Enabled: TRUE
+    User category: all
+    CAs: sc
+    Profiles: userSmartCard
+  -------------------------
+  Number of members added 1
+  -------------------------
+
+Now, as a user (``alice``), assuming you already have a CSR for the
+key in your smart card, request the certificate, specifying the
+``sc`` CA::
+
+  % ipa cert-request --principal alice --ca sc /path/to/csr.req
+    Certificate: MIIDmDCCAoCgAwIBAgIBQDANBgkqhkiG9w0BA...
+    Subject: CN=alice,O=IPA.LOCAL
+    Issuer: CN=Smart Card CA,O=IPA.LOCAL
+    Not Before: Fri Jul 15 05:57:04 2016 UTC
+    Not After: Mon Jul 16 05:57:04 2018 UTC
+    Fingerprint (MD5): 6f:67:ab:4e:0c:3d:37:7e:e6:02:fc:bb:5d:fe:aa:88
+    Fingerprint (SHA1): 0d:52:a7:c4:e1:b9:33:56:0e:94:8e:24:8b:2d:85:6e:9d:26:e6:aa
+    Serial number: 64
+    Serial number (hex): 0x40
 
 
 Test Plan
