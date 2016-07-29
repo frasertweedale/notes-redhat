@@ -15,8 +15,9 @@ Overview
 
 FreeIPA currently only supports host and service certificates and
 has a single, hard-coded certificate profile.  This proposal
-introduces the ability to define new certificate profiles for with
-user principals as well as services and hosts.
+introduces the ability to define new certificate profiles and
+control which subject principals or principal types (users, hosts or
+services) they can be used for.
 
 
 Use Cases
@@ -203,9 +204,10 @@ Enabling or disabling profiles
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 IPA will not provide a direct way to enable or disable profiles in
-Dogtag.  Separate CA ACL rules will govern whether a principal can
-use a particular profile, and these rules can be disabled or enabled
-by privileged users.  See the CA ACL section below.
+Dogtag.  Separate CA ACL rules will govern whether a particular
+profile can be used to issue a certificate to a particular subject
+princpial.  These rules can be created, modified, disabled or
+enabled by privileged users.  See the CA ACL section below.
 
 Storing issued certificates
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -297,9 +299,9 @@ Custom profile use cases involve the issuance of certificates for
 specific, unrelated purposes.  It is necessary to be able to define
 rules that control which profiles can be used to issue certificates
 to which principals.  ACLs will be used to associate profiles,
-principals and groups with a CA (initially just the *top-level* CA,
-but this provision is made for forward-compatibility with Sub-CAs).
-Specifically:
+subject principals and groups with a CA (initially just the
+*top-level* CA, but this provision is made for forward-compatibility
+with Lightweight CAs).  Specifically:
 
 - An ACL can permit access to multiple CAs.
 
@@ -309,8 +311,11 @@ Specifically:
   hostgroups associated with it.
 
 - The interpretation of the ACL is: *these principals (or groups)
-  are permitted to request certificates using these profiles, on
-  these CAs*.
+  are permitted as the subject of certificates issued using these
+  profiles, by these CAs*.
+
+Note that the principal performing the certificate request is not
+necessarily the subject principal.
 
 See also the ``ipa caacl-*`` commands in the CLI section below.
 
@@ -753,16 +758,10 @@ principals to use the default profile, ensuring that current
 capabilities are maintained.
 
 
-How to Test
-===========
+How to Use
+==========
 
-..
-  Easy to follow instructions how to test the new feature. FreeIPA
-  user needs to be able to follow the steps and demonstrate the new
-  features.
-
-  The chapter may be divided in sub-sections per [[#Use_Cases|Use
-  Case]].
+See https://blog-ftweedal.rhcloud.com/2015/08/user-certificates-and-custom-profiles-with-freeipa-4-2/
 
 
 Test Plan
