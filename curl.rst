@@ -11,6 +11,7 @@ Note that:
 
   % SSL_DIR=/etc/httpd/alias curl -v \
     --cert ipaCert:$(cat /etc/httpd/alias/pwdfile.txt) \
+    -c COOKIES \
     https://$(hostname):8443/ca/rest/account/login
 
 
