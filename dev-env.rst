@@ -9,3 +9,4 @@ Fedora
   ldapvi mozldap-tools
   strace
   util-linux-user (f24+; provides chsh)
+  hub
