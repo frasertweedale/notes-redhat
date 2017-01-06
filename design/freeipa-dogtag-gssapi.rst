@@ -301,11 +301,11 @@ framework, which we control.
 The ``pki-tomcatd`` deployment must be updated to accept external
 authentication.  In ``/etc/pki/pki-tomcat/server.xml``::
 
-  <Connector port=”8009”
-    protocol=”AJP/1.3”
+  <Connector port="8009"
+    protocol="AJP/1.3"
     tomcatAuthentication="false"  <!-- add this attribute -->
-    redirectPort=”8443”
-    address=”localhost” />
+    redirectPort="8443"
+    address="localhost" />
 
 
 ``CS.cfg``
