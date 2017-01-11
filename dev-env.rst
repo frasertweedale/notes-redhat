@@ -10,3 +10,4 @@ Fedora
   strace
   util-linux-user (f24+; provides chsh)
   hub
+  jq
