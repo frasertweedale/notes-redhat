@@ -1,0 +1,87 @@
+linux.conf.au 2017 trip report
+==============================
+
+linux.conf.au 2017 was held in Hobart, Tasmania on 16-20 January.
+
+On the Tuesday I ran the Security & Privacy Miniconf which covered a
+range of topics.  Some particular talks of interest are described
+and linked below.  I also did a very short FreeIPA update to talk
+about new and upcoming security features (Sub-CAs, AuthInd, NBDE,
+session recording).
+
+- Joey Hess did a talk[1] about *Keysafe* [2]: a key backup solution
+  he implemented that makes use of argon2 and Shamir's Secret
+  Sharing (among other things).
+
+- Rob N from FastMail gave a talk on *U2F* [3].  I have acquired a
+  U2F Zero device and wonder what I can do with it in FreeIPA?  Are
+  customers asking about U2F?
+
+- Chris Biggs' presentation about IoT security[4].  I used to work
+  with Chris at two previous companies; he is a great guy and smart.
+  The Register did a write-up of his talk[5].
+
+[1] https://www.youtube.com/watch?v=kzXXcr8TyJY
+[2] https://keysafe.branchable.com/
+[3] https://www.youtube.com/watch?v=vv11XMG5UJg
+[4] https://www.youtube.com/watch?v=qKJz4aPubNI
+[5] https://www.theregister.co.uk/2017/01/19/iot_will_get_worse_before_it_gets_better_dev_tells_linux_conference/
+
+In the hallway track, I met many people who were using or were
+interested in FreeIPA.  Mostly the usual questions: direct
+integration vs trusts, Samba 4 trusts.  I had lots of conversations
+about NBDE and explaining McCallum-Relyea to people.  I heard
+FreeIPA mentioned in more talks than at previous conferences, even
+software projects I hadn't heard of that are integrating with it,
+like Pallet Jack[6], a lightweight configuration management system
+being developed by Saab.
+
+[6] https://github.com/saab-simc-admin/palletjack/pull/91
+
+Anecdotally, hosting or infrastructure providers increasingly seem
+to be offering hosted PKI solutions, e.g. Hashicorp Vault.  I do not
+know the details of what they offer but it demonstrates that there
+is value in making PKI easier for customers and solving the common
+use cases well.  Competition is increasing.
+
+Some other talks of interest:
+
+- William's *Rust / C integration* talk.  I hope DS goes big on
+  Rust.  There must be many other projects in Red Hat that could
+  benefit, too.  https://www.youtube.com/watch?v=AWnza5JX7jQ
+
+- *At-rest encryption in OpenStack Swift*.  Seems to be a well
+  thought out design.  There is a master secret from which
+  individual keys for objects are derived (via HMAC).  We should
+  make sure there is support for getting the master secret via
+  Tang/Clevis.  https://www.youtube.com/watch?v=HRRbogFZEcU
+
+- *libtls* talk by LibreSSL developer Joel Sing about their new,
+  user-centric TLS API.  Good API-design lessons for all of us
+  working on security products.
+  https://www.youtube.com/watch?v=Wd_dyRbE4AA
+
+- *Managing Internal PKI at Scale with Anchor* by Stan Pitucha.  HP
+  Cloud's PKI solution.  The solution apparently involves Certmonger
+  but details are unclear.  It would be good to have an Anchor
+  renewal helper in Certmonger and I intend to follow up on this.
+  https://www.youtube.com/watch?v=nhRPlDSgFhE
+
+- *Managing performance parameters through systemd* by Sander van
+  Vugt.  Good introduction to CPUShares and systemd slices, and how
+  to manage them to achieve a desired resource allocation.
+  https://www.youtube.com/watch?v=6wrmKDb3kAo
+
+- *Python profiling and performance tuning* by Joe Gordon
+  (Pintrest).  Very useful overview of python profiling techniques
+  and their relative benefits/drawbacks.
+  https://www.youtube.com/watch?v=bectZn_yNwg
+
+- *Samba: the road to 10000 users* by Andrew Bartlett (Catalyst).
+  Main takeaway for me is that we should be constantly measuring our
+  performance in benchmarks of interest.  I don't think we are doing
+  much of this, e.g., how long does it take to issue a cert?  How
+  would we know if performance regressed?
+
+- *Thin LVM + KVM tips and tricks* by Steven Ellis (Red Hat, NZ).
+  If you've got an SSD and use VMs, watch this talk!
