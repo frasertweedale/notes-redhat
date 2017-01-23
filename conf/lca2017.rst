@@ -17,7 +17,7 @@ session recording).
   U2F Zero device and wonder what I can do with it in FreeIPA?  Are
   customers asking about U2F?
 
-- Chris Biggs' presentation about IoT security[4].  I used to work
+- Chris Biggs' presentation about *IoT security*[4].  I used to work
   with Chris at two previous companies; he is a great guy and smart.
   The Register did a write-up of his talk[5].
 
@@ -82,6 +82,8 @@ Some other talks of interest:
   performance in benchmarks of interest.  I don't think we are doing
   much of this, e.g., how long does it take to issue a cert?  How
   would we know if performance regressed?
+  https://www.youtube.com/watch?v=MvthtQc5TmA
 
 - *Thin LVM + KVM tips and tricks* by Steven Ellis (Red Hat, NZ).
   If you've got an SSD and use VMs, watch this talk!
+  https://www.youtube.com/watch?v=X4sLpGdGQjc
