@@ -69,7 +69,7 @@ Overview of Dogtag external authentication support
 --------------------------------------------------
 
 Design page:
-https://docs.google.com/document/d/1uftm27MX87oLfTb9rCTV5XijotBVHbPTOL_oxg2FNyQ/edit
+http://pki.fedoraproject.org/wiki/GSS-API_authentication
 
 The most important changes that affect FreeIPA are discussed in the
 following subsections.
