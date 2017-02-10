@@ -294,6 +294,14 @@ string if it wishes to use SPNEGO authentication.  This is not a
 problem because the only client of significance is the IPA
 framework, which we control.
 
+Client certificate
+''''''''''''''''''
+
+The ``NSSVerifyClient require`` directive shall be relaxed to
+``NSSVerifyClient optional``.  This is needed so that GSS-API
+authentication can be used for affected resources.  Codepaths that
+are configured to present a certificate will still do so.
+
 
 ``pki-tomcatd``
 ^^^^^^^^^^^^^^^
@@ -311,14 +319,15 @@ authentication.  In ``/etc/pki/pki-tomcat/server.xml``::
 ``CS.cfg``
 ^^^^^^^^^^
 
-``/etc/pki/pki-tomcat/{ca,kra}/CS.cfg`` must be updated too define
+``/etc/pki/pki-tomcat/{ca,kra}/CS.cfg`` must be updated to define
 an ``IAuthzManager`` plugin instance for the FreeIPA realm.
 
-Directives to be added (indicative only)::
+Directives to be added::
 
   authz.instance.IPAAuthz.pluginName=DirAclAuthz
-  authz.instance.IPAAuthz.ldap.basedn=TODO_NEED_TO_DEFINE_THIS
-  authz.instance.IPAAuthz.realm=EXAMPLE.COM
+  authz.instance.IPAAuthz.ldap=internaldb
+  authz.instance.IPAAuthz.searchBase=cn=IPA,cn=aclResources
+  authz.instance.IPAAuthz.realm=${ACTUAL_REALM}
 
 
 Dogtag ACL management
@@ -334,6 +343,10 @@ which entry/subtree), i.e. the ACLs that will be used by the
 Dogtag ACL syntax but will refer to IPA users (or other principal
 names), groups and permissions, rather than "internal" Dogtag users
 and groups.
+
+ACLs may need to allow host principals that are members of the
+``ipaservers`` group to perform some operations (e.g. profile
+management) during installation and upgrade.
 
 **TODO**: detail the various operations and provide example ACLs.
 
@@ -357,12 +370,52 @@ against the IPA directory.  (Refactorings shall occur accordingly).
 Other behaviour of the program shall be to unmarshall data from the
 execution environment and output the result in the required manner.
 
+The program must be able to connect to the database to look up
+information required to authorise and validate the request,
+including CA ACLs and virtual operation permissions.  Therefore, the
+bind principal **must have permission** to read relevant
+entries, and in the case of virtual operations, to execute the
+``GetEffectiveRights`` control against relevant permissions.
+
+Reading effective rights of a given user on an entry can only be
+done by *cn=Directory Manager* or by that user themselves.  The
+implication is that ``ipa-pki-validate-cert-request`` must bind as
+the *operator* principal who is executing the certificate request.
+Therefore, a proxy ticket for the operator must be acquired and used
+when talking back to the FreeIPA directory.  Apache must be
+configured to give Dogtag (i.e. ``pkiuser``) access to a client
+credential cache for this purpose.
+
 **TODO** the precise program contract w.r.t. environment, args,
 input, output, exit status, etc, is yet to be finalised.
 
 
 Implementation
 ==============
+
+Dogtag client credential cache
+------------------------------
+
+The ``ipa-pki-validate-cert-request`` program must use a proxy
+ticket to operate on behalf of the authenticated user when talking
+back to FreeIPA.  *mod_auth_gssapi* must be configured to establish
+a credential cache that can be read by ``pkiuser``.
+
+*mod_auth_gssapi* itself run as the ``apache`` user.  It is not
+appropriate to add ``pkiuser`` to the ``apache`` group, or vice
+versa, in order for *mod_auth_gssapi* to write credential caches
+that are readable by ``pkiuser``.  Instead, a simple way to
+accomplish this is to have *mod_auth_gssapi* write a
+**world-readable** ccache inside a directory that is readable only
+by ``apache`` and ``pkiuser``.
+
+The containing directory shall be ``/var/run/pki/clientcaches/``
+with ownership ``apache:pkiuser`` and mode ``0640``.  The credential
+caches created therein shall have mode ``0644``.  The following
+``httpd`` configuration directives are involved::
+
+  GssapiDelegCcacheDir /var/run/pki/clientcaches
+  GssapiDelegCcachePerms mode:0644
 
 
 Upgrade
@@ -373,6 +426,8 @@ Explicit upgrade steps that will be required include:
 - Update SSSD config (described above)
 - ``setsebool -P httpd_dbus_sssd 1`` (described above)
 - Update ``/etc/pki/pki-tomcat/server.xml`` (described above)
+- Add ``ExternalAuthenticationValve`` to
+  ``/etc/pki/pki-tomcat/Catalina/localhost/ca.xml``.
 - Update ``CS.cfg`` files (described above)
 - Write Dogtag ACLs for the FreeIPA realm
 
