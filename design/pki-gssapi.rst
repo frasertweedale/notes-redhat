@@ -496,52 +496,52 @@ particular importance are highlighted in boldface.
 #.  Call ``EnrollProfile.validate()`` , which validates the request
     against all constraint policies.
 
-Noting that data required to verify and authorise the request
-include the *authority ID* of the target CA, the *profile ID* and
-the CSR (most of the data therein), the new authorisation and
-validation behaviour will have to be included fairly late in the
-request processing.
-
-**TODO** discuss user-data
-
 Proposed solution: ``ExternalProcessConstraint``
 ''''''''''''''''''''''''''''''''''''''''''''''''
 
 A new ``IPolicyConstraint`` implementation shall be added.  It shall
-execute a program that can authorise and verify the request.
-
-The new profile constraint implementation shall be named
-``ExternalProcessConstraint`` .
-
-The ``executable`` configuration parameter shall give the path of
-the program to execute.
+execute as a subprocess a program (whose path is given by the
+``executable`` configuration parameter) that can authorise and
+verify the request.
 
 Dogtag shall execute the program with no command line arguments.
-The program should ignore any command line arguments.
+The program **should** ignore command line arguments.
 
 The program shall be provided the following data via environment
-variables.
+variables:
 
-#. Operator principal name (i.e. who is submitting the request)
-#. ??? IPA subject principal name ???  **TODO** how to convey this to
-   dogtag?  Is a new profile input needed?  This datum is needed for CA
-   ACL evaluation, and we cannot derive it from the CSR because e.g. we
-   do not know whether a DNS name in CSR corresponds to a host or
-   service principal for that DNS name.
-#. Target CA authority ID.
-#. Profile name
-#. CSR (PEM format?)
-#. Other data?  What else might we need?  Should we provide it all?
+``DOGTAG_AUTHORITY_ID``
+  Authority ID (UUID) of target CA
+``DOGTAG_CERT_REQUEST``
+  Certificate request value, e.g. a PEM-encoded PKCS #10 CSR
+``DOGTAG_PROFILE_ID``
+  Name of certificate profile
+``DOGTAG_USER``
+  Operator principal name (i.e. who is submitting the request)
+``DOGTAG_USER_DATA`` (optional)
+  User-supplied data, if any (see following section)
 
-**TODO** precisely define program contract
+An ``ExternalProcessConstraint`` instance can be configured to read
+additional request attributes from the ``IRequest`` into the
+subprocess environment, via the ``env`` configuration sub-store,
+whose keys are environment variable names and whoes values are
+``IRequest`` *extData* keys.  Keys that are not found in the
+``IRequest`` are ignored (nothing gets added to the subprocess
+environment).
 
-**TODO** determine how to convey arbitrary data back to client e.g.
-to reconstitute IPA exceptions
+Example configuration::
 
-The program can use the data provided to authorise and/or validate
-the request.  The result is conveyed in the exit status.  Depending
-on the exit status, additional information may be provided on
-standard output, as described below:
+  policyset.serverCertSet.12.default.class_id=noDefaultImpl
+  policyset.serverCertSet.12.default.name=No Default
+  policyset.serverCertSet.12.constraint.class_id=externalProcessConstraintImpl
+  policyset.serverCertSet.12.constraint.name=IPA policy enforcement
+  policyset.serverCertSet.12.constraint.params.executable=/usr/libexec/ipa/ipa-pki-validate-cert-request
+  policyset.serverCertSet.12.constraint.params.env.KRB5CCNAME=auth_token.PRINCIPAL.KRB5CCNAME
+
+The program can use the data available in its environment to
+authorise and/or validate the request.  The outcome is conveyed in
+the exit status.  Depending on the exit status, additional
+information may be provided on standard output, as described below:
 
 - If the request is not authorised (FreeIPA example: issuance not
   permitted by CA ACLs), exit with status 1.  A text description of
@@ -557,6 +557,40 @@ standard output, as described below:
 A non-zero exit status shall cause ``ERejectException`` to be
 thrown, with the standard output from the executable as its
 argument.  **TODO** or stderr?
+
+**TODO** precisely define program contract w.r.t. output, exit
+codes, how messages get propagated to client.
+
+Propagating arbitrary data to ``ExternalProcessConstraint``
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Some use cases may require aribitrary data supplied by the requestor
+to be observed by the profile policies, e.g. in the FreeIPA use
+case, the operator must indicate the subject principal name, and
+this must be propagated to the request validation program via
+``ExternalProcessConstraint``.
+
+To support this, a new, optional *user data* parameter will be
+recognised by the enrolment processor.  Specifically, if the HTTP
+request parameter ``user-data`` occurs, its value will be recorded
+in the ``IRequest``, and the ``ExternalProcessConstraint`` will
+expose it in the subprocess environment (see above).
+
+Propagating principal attributes to ``ExternalProcessConstraint``
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Some use cases may require attributes about an externally
+authenticated principal that have been made available in the HTTP
+request environment (e.g. attributes from mod_lookup_identity or
+mod_auth_gssapi) to be made available to profile policies, e.g. the
+``KRB5CCNAME`` variable.
+
+If the authenticated principal is an ``ExternalPrincipal``, all of
+the values from the principal's attribute map shall be added to the
+``IRequest`` as *extData*, under the key
+``auth_token.PRINCIPAL.<attr-key>``.  The
+``ExternalProcessConstraint`` can then be configured to add
+variables of interest to the subprocess environment.
 
 ..
   KRA authorisation
