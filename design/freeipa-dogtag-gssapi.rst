@@ -337,12 +337,13 @@ Previously, FreeIPA added attribute values to the main Dogtag ACLs
 entry (``cn=aclResources,o=ipaca``) to allow the RA Agent to perform
 required operations.
 
-Now, FreeIPA will manage ACLs in a separate entry (**TODO**: specify
-which entry/subtree), i.e. the ACLs that will be used by the
-``IAuthzManager`` for the IPA realm.  These ACLs use the standard
-Dogtag ACL syntax but will refer to IPA users (or other principal
-names), groups and permissions, rather than "internal" Dogtag users
-and groups.
+Now, FreeIPA will manage ACLs in a separate entry that will be read
+by the ``IAuthzManager`` for the IPA realm.  These ACLs use the
+standard Dogtag ACL syntax but will refer to IPA users (or other
+principal names), groups and permissions, rather than "internal"
+Dogtag users and groups.  The entry shall be::
+
+  cn=IPA.LOCAL,cn=aclResources,o=ipaca
 
 ACLs may need to allow host principals that are members of the
 ``ipaservers`` group to perform some operations (e.g. profile
