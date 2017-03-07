@@ -589,45 +589,18 @@ the values from the principal's attribute map shall be added to the
 ``ExternalProcessConstraint`` can then be configured to add
 variables of interest to the subprocess environment.
 
-..
-  KRA authorisation
-  ^^^^^^^^^^^^^^^^^
 
-  TODO: this section needs expansion.
+KRA authorisation
+~~~~~~~~~~~~~~~~~
 
-  1. multiple applications that try to access a secret
-     i.e. do not allow ipa user to access barbican secrets; vice versa
-  2. ownership determines whether or not someone can access secret
-  3. application-specific authz check are needed, e.g. IPA Vault
-     manager should be able to access all vault secrets.
-     authz call for resource-class + operation
-     authz plugin for resource-INSTANCE + operation
-          - "post-authorize" call?
-          - what are params?
-            - object app/tag/idp
-            - object owner
-            - object group access?
-          - only gets invoked if app/idp on object matches principal
-          - what we don't want to happen:
-            - suppose user in IPA who is vault manager has access to IPA secrets
-            - don't want that user to be access to be able to access
-              secrets stored by barbican user, EVEN IF barbican
-              authenticated with ticket in IPA domain.
-            - this does make sense (once you think about it)
-            - question: how does KRA know what application is storing the
-              secret?
-              - is there a vaultUser class?
-              - it is a parameter of the vault-add
-            - OPEN QUESTION: is there a null or default application
-            - when you retrieve, you also have to pass a parameter
-              - I am retrieving in context of application X
-              - you will then be evaluated in context of application X
-              - question: is there any exploit here
-                - application must not form part of identity of secret
-            - question: are we registereing authz plugins by
-              (idp, application) pair.
+The FreeIPA KRA backend currently uses ``pki.kra.KRAClient``,
+therefore we can use SPNEGO authentication for CA operations whilst
+continuing to use the KRA agent certificate to authenticate KRA
+operations; no special treatment of the KRA is required.
 
-  - TODO talk to Jack; auth based on resource things to TPS
+Eventually we may want to change the KRA client to use GSS-API proxy
+authentication.  This work would be tackled in a separate design.
+
 
 Data model impact
 ~~~~~~~~~~~~~~~~~
