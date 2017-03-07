@@ -411,7 +411,7 @@ accomplish this is to have *mod_auth_gssapi* write a
 by ``apache`` and ``pkiuser``.
 
 The containing directory shall be ``/var/run/pki/clientcaches/``
-with ownership ``apache:pkiuser`` and mode ``0640``.  The credential
+with ownership ``apache:pkiuser`` and mode ``0750``.  The credential
 caches created therein shall have mode ``0644``.  The following
 ``httpd`` configuration directives are involved::
 
