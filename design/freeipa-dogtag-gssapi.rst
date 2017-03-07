@@ -55,8 +55,9 @@ cases that FreeIPA can satisfy.
 Feature Management
 ==================
 
-As discussed below, a domain level bump is required to switch from
-using the RA Agent certificate to using GSS-API and proxy tickets.
+As discussed below, a domain level bump may be required to switch
+from using the RA Agent certificate to using GSS-API and proxy
+tickets.
 
 No other administrator intervention is expected, and there are no
 user-visible changes associated with this effort.
@@ -387,8 +388,37 @@ when talking back to the FreeIPA directory.  Apache must be
 configured to give Dogtag (i.e. ``pkiuser``) access to a client
 credential cache for this purpose.
 
-**TODO** the precise program contract w.r.t. environment, args,
-input, output, exit status, etc, is yet to be finalised.
+Program contract
+^^^^^^^^^^^^^^^^
+
+The ``ExternalProcessConstraint`` will execute the program with the
+following environment variables:
+
+``DOGTAG_AUTHORITY_ID``
+  Authority ID (UUID) of target CA
+``DOGTAG_CERT_REQUEST``
+  Certificate request value, i.e. a PEM-encoded PKCS #10 CSR
+``DOGTAG_PROFILE_ID``
+  Name of certificate profile
+``DOGTAG_USER``
+  Operator principal name (i.e. who is submitting the request)
+``DOGTAG_USER_DATA`` (optional)
+  User-supplied data, if any
+
+FreeIPA shall cause the ``DOGTAG_USER_DATA`` field to contain the
+name of the **subject principal**, by conveying it in the
+``user-data`` query parameter in the HTTP certificate request.
+
+The program shall terminate with exit status zero if the request is
+authorised and valid.
+
+The program shall terminate with nonzero exit status if the request
+is not authorised or not valid, or if an internal error occurs.  The
+raised exception (including subclasses of ``PublicError`` that
+signal lack of authority or invalid request) shall be serialised to
+standard output.  (It is included in the HTTP response from Dogtag,
+and FreeIPA can reconstruct and re-raise the exception in the server
+framework).
 
 
 Implementation
