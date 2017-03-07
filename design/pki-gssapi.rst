@@ -540,26 +540,23 @@ Example configuration::
 
 The program can use the data available in its environment to
 authorise and/or validate the request.  The outcome is conveyed in
-the exit status.  Depending on the exit status, additional
-information may be provided on standard output, as described below:
+the exit status and in standard output:
 
-- If the request is not authorised (FreeIPA example: issuance not
-  permitted by CA ACLs), exit with status 1.  A text description of
-  the failure SHOULD be provided on standard output.
+- If the request is permitted, the exit status SHALL be zero.
 
-- If the request is authorised but otherwise invalid (FreeIPA
-  example: subject naming information in CSR does not match the
-  subject principal), exit with status 2.  A text description SHOULD
-  be provided on standard output.
+- If the request is not permitted for any reason (FreeIPA example:
+  issuance not permitted by CA ACLs), the exit status SHALL be
+  nonzero, and a description of the failure SHOULD be provided on
+  standard output.  (Standard error is case out-of-band data is
+  output on standard error, e.g. logging).
 
-- Otherwise, exit with status 0.
+A nonzero exit status shall cause ``ERejectException`` to be thrown,
+with the standard output from the executable as its argument.  This
+value gets persisted in the request entry (LDAP ext data, key
+``IRequest.ERROR``) and propagated to the client in the
+``"errorMessage"`` field of the response (this is existing
+behaviour, and is sufficient).
 
-A non-zero exit status shall cause ``ERejectException`` to be
-thrown, with the standard output from the executable as its
-argument.  **TODO** or stderr?
-
-**TODO** precisely define program contract w.r.t. output, exit
-codes, how messages get propagated to client.
 
 Propagating arbitrary data to ``ExternalProcessConstraint``
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
