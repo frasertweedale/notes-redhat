@@ -1,0 +1,24 @@
+OtherName types
+---------------
+
+- SRVName (1.3.6.1.5.5.7.8.7)
+  - https://tools.ietf.org/html/rfc4985
+  - used by XMPP (https://tools.ietf.org/html/rfc6120)
+
+- Subscriber Identification Method (1.3.6.1.5.5.7.8.6)
+  - https://tools.ietf.org/html/rfc4683
+
+- XmppAddr (1.3.6.1.5.5.7.8.5)
+  - https://tools.ietf.org/html/rfc6120#section-13.7.1.4
+
+- Hardware module name (1.3.6.1.5.5.7.8.4)
+  - https://tools.ietf.org/html/rfc4108#section-5
+
+- Permanent Identifier (1.3.6.1.5.5.7.8.3)
+  - https://tools.ietf.org/html/rfc4043.html
+
+- KRB5PrincipalName (1.3.6.1.5.2.2)
+  - https://tools.ietf.org/html/rfc4556
+
+- NT Principal Name (1.3.6.1.4.1.311.20.2.3)
+  - https://msdn.microsoft.com/en-us/library/ff842518.aspx
