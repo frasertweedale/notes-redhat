@@ -11,3 +11,5 @@ Fedora
   util-linux-user (f24+; provides chsh)
   hub
   jq
+  git-remote-hg (mercurial remote helper for git)
+  fedpkg
