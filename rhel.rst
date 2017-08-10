@@ -43,3 +43,10 @@ Register the system to a subscription management service::
   Installed Product Current Status:
   Product Name: Red Hat Enterprise Linux Server
   Status:       Subscribed
+
+
+KVM image
+---------
+
+How to change the password (guestfish):
+https://access.redhat.com/discussions/664843
