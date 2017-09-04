@@ -37,6 +37,9 @@ Other setup steps:
 
 - ``systemctl enable sshd``
 
+- polkit policy to allow user to control libvirtd without
+  password prompt: https://superuser.com/questions/548433/how-do-i-prevent-virt-manager-from-asking-for-the-root-password
+
 ``gnome-terminal`` configuration
 --------------------------------
 
