@@ -37,6 +37,34 @@ Other setup steps:
 
 - ``systemctl enable sshd``
 
+``gnome-terminal`` configuration
+--------------------------------
+
+::
+
+  dconf load /org/gnome/terminal/ <<EOF
+  [legacy/keybindings]
+  help='disabled'
+
+  [legacy/profiles:/:b1dcc9dd-5262-4d8d-a863-c897e6d979b9]
+  foreground-color='rgb(255,255,255)'
+  palette=['rgb(26,26,26)', 'rgb(239,41,41)', 'rgb(138,226,52)', 'rgb(205,205,0)', 'rgb(0,116,230)', 'rgb(255,53,233)', 'rgb(0,255,255)', 'rgb(229,229,229)', 'rgb(76,76,76)', 'rgb(255,0,0)', 'rgb(0,255,0)', 'rgb(255,255,0)', 'rgb(0,116,230)', 'rgb(255,0,255)', 'rgb(0,255,255)', 'rgb(255,255,255)']
+  word-char-exceptions=@ms '|'
+  cursor-shape='block'
+  use-system-font=false
+  use-theme-colors=false
+  font='DejaVu Sans Mono 9'
+  allow-bold=true
+  bold-color-same-as-fg=true
+  background-color='rgb(0,0,0)'
+  audible-bell=false
+
+  [legacy]
+  schema-version=uint32 3
+  default-show-menubar=false
+  EOF
+
+
 Haskell dev
 ===========
 
