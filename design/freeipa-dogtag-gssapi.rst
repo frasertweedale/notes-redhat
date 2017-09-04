@@ -259,6 +259,36 @@ InfoPipe.
   $ sudo setsebool -P httpd_dbus_sssd 1
 
 
+gssproxy
+^^^^^^^^
+
+gssproxy must be given access to the key for
+``dogtag/<hostname>@REALM``, and must be configured to allow user
+``apache`` to use this key.  It must also allow ``pkiuser`` to use
+this key (but ``pkiuser`` should not get access to the ``HTTP/``
+key.
+
+Example ``/etc/gssproxy/10-ipa.conf`` configuration::
+
+  [service/ipa-httpd]
+    mechs = krb5
+    cred_store = keytab:/var/lib/ipa/gssproxy/http-and-dogtag.keytab
+    cred_store = client_keytab:/var/lib/ipa/gssproxy/http-and-dogtag.keytab
+    cred_usage = both
+    allow_protocol_transition = true
+    euid = apache
+
+  [service/ipa-pki]
+    mechs = krb5
+    cred_store = client_keytab:/var/lib/ipa/gssproxy/dogtag.keytab
+    cred_usage = initiate
+    allow_constrained_delegation = true
+    euid = pkiuser
+
+  [service/ipa-api]
+    # ... (unchanged)
+
+
 httpd
 ^^^^^
 
@@ -274,11 +304,11 @@ Example (indicative only)::
   <If "%{QUERY_STRING} =~ /\bgssapi=/">
     AuthType GSSAPI
     AuthName "Kerberos Login"
-    GssapiCredStore keytab:/etc/httpd/conf/ipa.keytab
-    GssapiCredStore client_keytab:/etc/httpd/conf/ipa.keytab
-    GssapiDelegCcacheDir /var/run/httpd/ipa/clientcaches
-    GssapiUseS4U2Proxy on
     GssapiAllowedMech krb5
+    GssapiUseS4U2Proxy on
+    GssapiDelegCcacheDir /var/run/pki/clientcaches
+    GssapiDelegCcachePerms mode:0644
+    GssapiDelegCcacheEnvVar AJP_KRB5CCNAME
     Require valid-user
     LookupUserAttrIter roles +AJP_REMOTE_USER_GROUP
   </If>
