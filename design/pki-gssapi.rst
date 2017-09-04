@@ -502,7 +502,8 @@ Proposed solution: ``ExternalProcessConstraint``
 A new ``IPolicyConstraint`` implementation shall be added.  It shall
 execute as a subprocess a program (whose path is given by the
 ``executable`` configuration parameter) that can authorise and
-verify the request.
+verify the request.  The process timeout, in seconds, is given by
+the optional ``timeout`` parameter, defaulting to 10 seconds.
 
 Dogtag shall execute the program with no command line arguments.
 The program **should** ignore command line arguments.
@@ -536,6 +537,7 @@ Example configuration::
   policyset.serverCertSet.12.constraint.class_id=externalProcessConstraintImpl
   policyset.serverCertSet.12.constraint.name=IPA policy enforcement
   policyset.serverCertSet.12.constraint.params.executable=/usr/libexec/ipa/ipa-pki-validate-cert-request
+  policyset.serverCertSet.12.constraint.params.timeout=5
   policyset.serverCertSet.12.constraint.params.env.KRB5CCNAME=auth_token.PRINCIPAL.KRB5CCNAME
 
 The program can use the data available in its environment to
