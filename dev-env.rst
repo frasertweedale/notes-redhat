@@ -73,3 +73,4 @@ Haskell dev
 
 - ``sudo dnf copr enable petersen/stack``
 - ``sudo dnf install ghc-compiler stack cabal-install``
+- ``sudo dnf install ghc-ghc-devel happy`` (for building ghc-mod)
