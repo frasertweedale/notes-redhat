@@ -24,7 +24,7 @@ In addition to the above:
 - build: ``@buildsys-build autoconf``
 - vcs: ``git hub mercurial``
 - editors: ``emacs-nox``
-- mail: ``mutt fetchmail maildrop notmuch thunderbird``
+- mail: ``mutt fetchmail maildrop notmuch thunderbird lynx``
 - irc: ``isrri``
 - containers: ``docker origin-clients``
 - security: ``wireshark-gtk testssl``
@@ -39,6 +39,10 @@ Other setup steps:
 
 - polkit policy to allow user to control libvirtd without
   password prompt: https://superuser.com/questions/548433/how-do-i-prevent-virt-manager-from-asking-for-the-root-password
+
+- In ``/etc/systemd/logind.conf``, set ``KillUserProcesses=no``
+  so that systemd does not kill tmux session on logout
+  (or gnome-shell crash).
 
 ``gnome-terminal`` configuration
 --------------------------------
