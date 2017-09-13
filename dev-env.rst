@@ -28,7 +28,7 @@ In addition to the above:
 - irc: ``isrri``
 - containers: ``docker origin-clients``
 - security: ``wireshark-gtk testssl``
-- virt: ``virt-manager libguestfs-tools-c (virt-sparsify)``
+- virt: ``virt-manager libguestfs-tools-c libvirt-client``
 - textproc: ``texlive-collection-latex pandoc pandoc-pdf``
 - multimedia: ``gimp gpodder``
 - other: ``gnome-tweak-tool``
