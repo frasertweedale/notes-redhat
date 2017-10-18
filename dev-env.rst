@@ -29,7 +29,7 @@ In addition to the above:
 - containers: ``docker origin-clients``
 - security: ``wireshark-gtk testssl``
 - virt: ``virt-manager libguestfs-tools-c libvirt-client``
-- textproc: ``texlive-collection-latex pandoc pandoc-pdf``
+- textproc: ``texlive-collection-latex pandoc pandoc-pdf texlive-beamer``
 - multimedia: ``gimp gpodder``
 - other: ``gnome-tweak-tool``
 
