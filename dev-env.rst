@@ -1,13 +1,13 @@
 Packages etc needed for setting up a dev box how I like it...
 
-Fedora
-======
+Fedora devel machine
+====================
 
 ::
 
   git zsh tmux vim the_silver_searcher @buildsys-build
   ldapvi mozldap-tools
-  strace
+  strace gdb
   util-linux-user (f24+; provides chsh)
   hub
   jq
@@ -21,11 +21,11 @@ Fedora workstation
 In addition to the above:
 
 - authentication: ``krb5-workstation``
-- build: ``@buildsys-build autoconf gdb``
+- build: ``@buildsys-build autoconf``
 - vcs: ``git hub mercurial``
 - editors: ``emacs-nox``
 - mail: ``mutt fetchmail maildrop notmuch thunderbird lynx``
-- irc: ``isrri``
+- irc: ``irssi``
 - containers: ``docker origin-clients``
 - security: ``wireshark-gtk testssl``
 - virt: ``virt-manager libguestfs-tools-c libvirt-client``
