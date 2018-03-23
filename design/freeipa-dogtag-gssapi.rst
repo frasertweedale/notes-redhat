@@ -357,7 +357,7 @@ Directives to be added::
 
   authz.instance.IPAAuthz.pluginName=DirAclAuthz
   authz.instance.IPAAuthz.ldap=internaldb
-  authz.instance.IPAAuthz.searchBase=cn=IPA,cn=aclResources
+  authz.instance.IPAAuthz.searchBase=cn=IPA.LOCAL,cn=aclResources
   authz.instance.IPAAuthz.realm=${ACTUAL_REALM}
 
 
