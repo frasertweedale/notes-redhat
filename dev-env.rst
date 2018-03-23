@@ -21,7 +21,7 @@ Fedora workstation
 In addition to the above:
 
 - authentication: ``krb5-workstation``
-- build: ``@buildsys-build autoconf``
+- build: ``@buildsys-build autoconf gdb``
 - vcs: ``git hub mercurial``
 - editors: ``emacs-nox``
 - mail: ``mutt fetchmail maildrop notmuch thunderbird lynx``
