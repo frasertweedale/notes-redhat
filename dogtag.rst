@@ -54,6 +54,24 @@ CLI tools
 
 - http://pki.fedoraproject.org/wiki/CLI
 
+Prepare IPA RA NSSDB
+--------------------
+
+Recent versions of FreeIPA have IPA RA key and certificate stored
+as PEM files instead of in ``/etc/httpd/alias``.  Therefore we need
+to prepare an NSSDB for use with ``pki`` CLI tool.
+
+::
+
+  % openssl pkcs12 -export -out ipara.p12 \
+    -inkey /var/lib/ipa/ra-agent.key \
+    -in <(cat /var/lib/ipa/ra-agent.pem /etc/ipa/ca.crt) \
+    -name ipaCert
+  % mkdir nssdb
+  % certutil -d nssdb -N
+  % pk12util -d nssdb -i ipara.p12
+
+
 profile module
 --------------
 
