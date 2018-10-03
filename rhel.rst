@@ -50,3 +50,15 @@ KVM image
 
 How to change the password (guestfish):
 https://access.redhat.com/discussions/664843
+
+
+Devel
+-----
+
+``rhpkg`` and ``brew`` in repo (Fedora)::
+
+  [rcm-tools-fedora-rpms]
+  name=RCM Tools for Fedora $releasever (RPMs)
+  baseurl=http://download.devel.redhat.com/rel-eng/RCMTOOLS/latest-RCMTOOLS-2-F-$releasever/compose/Everything/$basearch/os/
+  enabled=1
+  gpgcheck=0
