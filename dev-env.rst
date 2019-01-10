@@ -5,9 +5,10 @@ Fedora devel machine
 
 ::
 
-  git zsh tmux vim the_silver_searcher @buildsys-build
+  git zsh tmux vim the_silver_searcher
+  @buildsys-build @c-development
   ldapvi mozldap-tools
-  strace gdb
+  ltrace strace gdb
   util-linux-user (f24+; provides chsh)
   hub
   jq
