@@ -51,6 +51,16 @@ KVM image
 How to change the password (guestfish):
 https://access.redhat.com/discussions/664843
 
+Alternative procedure::
+
+  $ virt-customize -a rhel-guest-image-7.2-20160302.0.x86_64.qcow2 \
+      --root-password password:CHANGEME --uninstall cloud-init
+  [   0.0] Examining the guest ...
+  [  12.1] Setting a random seed
+  [  12.1] Uninstalling packages: cloud-init
+  [  14.5] Setting passwords
+  [  15.9] Finishing off
+
 
 Devel
 -----
