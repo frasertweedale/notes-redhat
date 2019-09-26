@@ -103,9 +103,9 @@ CA certificate serial numbers
 
 - Base: **hexademical**
 
-- Current range: dbs.beginSerialNumber ..  dbs.endSerialNumber
+- Current range: ``dbs.beginSerialNumber`` ..  ``dbs.endSerialNumber``
 
-- Next range: dbs.nextBeginSerialNumber .. dbs.nextEndSerialNumber
+- Next range: ``dbs.nextBeginSerialNumber`` .. ``dbs.nextEndSerialNumber``
 
 - LDAP repository object (nextRange attribute):
   ``ou=certificateRepository,ou=ca,o=ipaca``
@@ -117,47 +117,39 @@ CA certificate serial numbers
 CA requests
 -----------
 
-Base: demical
+- Base: demical
 
-CS.cfg attributes:
+- Current range: ``dbs.beginRequestNumber`` .. ``dbs.endRequestNumber``
 
-Current range: dbs.beginRequestNumber .. dbs.endRequestNumber
-Next range: dbs.nextBeginRequestNumber .. dbs.nextEndRequestNumber
+- Next range: ``dbs.nextBeginRequestNumber`` .. ``dbs.nextEndRequestNumber``
 
-LDAP repository object (nextRange attribute):
+- LDAP repository object (nextRange attribute):
+  ``ou=ca,ou=requests,o=ipaca``
 
-dn: ou=ca,ou=requests,o=ipaca
-
-LDAP ranges subtree parent:
-
-dn: ou=requests,ou=ranges,o=ipaca
+- LDAP ranges subtree parent: ``ou=requests,ou=ranges,o=ipaca``
 
 Replica numbers
 ---------------
 
-Base: demical
+- Base: demical
 
-CS.cfg attributes:
+- Current range: ``dbs.beginReplicaNumber`` .. ``dbs.endReplicaNumber``
 
-Current range: dbs.beginReplicaNumber .. dbs.endReplicaNumber
-Next range: dbs.nextBeginReplicaNumber .. dbs.nextEndReplicaNumber
+- Next range: ``dbs.nextBeginReplicaNumber`` .. ``dbs.nextEndReplicaNumber``
 
-LDAP repository object (nextRange attribute):
+- LDAP repository object (nextRange attribute):
+  ``ou=replica,o=ipaca``
 
-dn: ou=replica,o=ipaca
-
-LDAP ranges subtree parent:
-
-dn: ou=replica,ou=ranges,o=ipaca
+- LDAP ranges subtree parent: ``ou=replica,ou=ranges,o=ipaca``
 
 KRA keys
 --------
 
 - Base: **hexademical**
 
-- Current range: dbs.beginSerialNumber .. dbs.endSerialNumber
+- Current range: ``dbs.beginSerialNumber`` .. ``dbs.endSerialNumber``
 
-- Next range: dbs.nextBeginSerialNumber .. dbs.nextEndSerialNumber
+- Next range: ``dbs.nextBeginSerialNumber`` .. ``dbs.nextEndSerialNumber``
 
 - LDAP repository object (nextRange attribute):
   ``ou=keyRepository,ou=kra,o=kra,o=ipaca``
@@ -168,31 +160,28 @@ KRA keys
 KRA requests
 ------------
 
-Base: demical
+- Base: demical
 
-Current range: dbs.beginRequestNumber .. dbs.endRequestNumber
-Next range: dbs.nextBeginRequestNumber .. dbs.nextEndRequestNumber
+- Current range: ``dbs.beginRequestNumber`` .. ``dbs.endRequestNumber``
 
-LDAP repository object (nextRange attribute):
+- Next range: ``dbs.nextBeginRequestNumber`` .. ``dbs.nextEndRequestNumber``
 
-dn: ou=kra,ou=requests,o=kra,o=ipaca
+- LDAP repository object (nextRange attribute):
+  ``ou=kra,ou=requests,o=kra,o=ipaca``
 
-LDAP ranges subtree parent:
-
-dn: ou=requests,ou=ranges,o=kra,o=ipaca
+- LDAP ranges subtree parent:
+  ``ou=requests,ou=ranges,o=kra,o=ipaca``
 
 KRA replicas numbers
 --------------------
 
-Base: demical
+- Base: demical
 
-Current range: dbs.beginReplicaNumber .. dbs.endReplicaNumber
-Next range: dbs.nextBeginReplicaNumber .. dbs.nextEndReplicaNumber
+- Current range: ``dbs.beginReplicaNumber`` .. ``dbs.endReplicaNumber``
 
-LDAP repository object (nextRange attribute):
+- Next range: ``dbs.nextBeginReplicaNumber`` .. ``dbs.nextEndReplicaNumber``
 
-dn: ou=replica,o=kra,o=ipaca
+- LDAP repository object (nextRange attribute):
+  ``ou=replica,o=kra,o=ipaca``
 
-LDAP ranges subtree parent:
-
-dn: ou=replica,ou=ranges,o=kra,o=ipaca
+- LDAP ranges subtree parent: ``ou=replica,ou=ranges,o=kra,o=ipaca``
