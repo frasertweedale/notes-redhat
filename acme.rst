@@ -303,3 +303,18 @@ Spec observations
   - Why not MUST NOT ?
 
 
+certbot
+=======
+
+::
+
+  % certbot \
+    --config-dir ~/certbot/config \
+    --work-dir ~/certbot/work \
+    --logs-dir ~/certbot-log \
+    certonly \
+    --standalone \
+    --domain $(hostname) \
+    --server http://f30-0.ipa.local/acme/directory \
+    --register-unsafely-without-email
+
