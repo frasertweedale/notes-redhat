@@ -59,3 +59,30 @@ module::
 
     $ sudo rmmod iwlmvm && sudo rmmod iwlwifi
     $ sudo modprobe iwlwifi
+
+
+IPv6
+----
+
+Configure IPv6 with static address and gateway::
+
+  # nmcli c m eth0 \
+      ipv6.method manual \
+      ipv6.address fd00::1231:82:0 \
+      ipv6.gateway fd00::1
+  # nmcli c u eth0
+
+Note there are some short aliases for some options, e.g.
+``ip6`` and ``gw6``.  See ``nmcli(1)`` for details.
+
+Configure host for IPv6, static address, static DNS and set default
+route (IPv4 disabled)::
+
+  # nmcli connection modify en
+
+  # nmcli c m enp1s0 \
+    ipv4.method disabled ipv4.address "" \
+    ipv6.method manual ipv6.address "fd00::f31:0" \
+    ipv6.dns "fd00::1" ipv6.gateway fd00::1
+  # nmcli c u enp1s0
+  # ip addr del 127.0.0.1/8 dev lo
