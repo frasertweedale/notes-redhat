@@ -59,3 +59,10 @@
   Output format: raw
   Total usable space: 5.2G
   Free space: 4.5G (86%)
+
+
+Virtual TPM device
+==================
+
+Add TPM hardware (emulated).  Requires ``swtpm-tools`` package on
+host.
