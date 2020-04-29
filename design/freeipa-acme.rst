@@ -312,13 +312,29 @@ LDAP schema
 
 LDAP tree::
 
-  acmedn = e.g. cn=acme,cn=ipa,{basedn}
+  dn: ou=acme,o=ipaca
+  objectclass: organizationalUnit
+  ou: acme
 
-  nonces = cn=nonces,{acmedn}
-  accounts = cn=accounts,{acmedn}
-  orders = cn=orders,{acmedn}
-  authorizations = cn=authorizations,{acmedn}
-  challenges = cn=challenges,{acmedn}
+  dn: ou=nonces,ou=acme,o=ipaca
+  objectclass: organizationalUnit
+  ou: nonces
+
+  dn: ou=accounts,ou=acme,o=ipaca
+  objectclass: organizationalUnit
+  ou: accounts
+
+  dn: ou=orders,ou=acme,o=ipaca
+  objectclass: organizationalUnit
+  ou: orders
+
+  dn: ou=authorizations,ou=acme,o=ipaca
+  objectclass: organizationalUnit
+  ou: authorizations
+
+  dn: ou=challenges,ou=acme,o=ipaca
+  objectclass: organizationalUnit
+  ou: challenges
 
 LDAP schema::
 
@@ -413,3 +429,61 @@ LDAP schema::
     SUP acmeChallenge
     STRUCTURAL
     MUST acmeToken )
+
+
+Installation
+^^^^^^^^^^^^
+
+Steps to deploy ACME component:
+
+::
+
+  # pki-server acme-create
+
+Creates the ``/etc/pki/pki-tomcat/acme`` instance dir and populates
+it with default config files.
+
+``backend.json`` - PKI backend configuration::
+
+  {
+      "class": "org.dogtagpki.acme.backend.PKIBackend",
+      "parameters": {
+          "url": "https://$HOSTNAME:8443",
+          "profile": "acmeServerCert",
+          "username": "admin",
+          "password": "Secret.123"
+      }
+  }
+
+TODO: we should support either GSS-API or Certificate authn between
+ACME service and CA subsystem.
+
+``database.json`` - LDAP database configuration::
+
+  {
+      "class": "org.dogtagpki.acme.database.LDAPDatabase",
+      "parameters": {
+          "basedn": "ou=acme,o=ipaca",
+          "configFile": "/etc/pki/pki-tomcat/ca/CS.cfg"
+      }
+  }
+
+Create the LDAP ACME subtree structure (see above).
+
+
+Deploy ACME server::
+
+  # pki-server acme-deploy
+
+
+Implementation
+--------------
+
+Checklist.
+
+- [ ] LDAP indexes
+- [~] install; add acme service configs
+- [ ] upgrade; add PKI ACME schema
+- [ ] upgrade; deploy ACME service
+- [ ] upgrade; add ACME LDAP OUs
+- [ ] upgrade; add acme service configs

@@ -306,15 +306,20 @@ Spec observations
 certbot
 =======
 
-::
+Register account::
 
   % certbot \
-    --config-dir ~/certbot/config \
-    --work-dir ~/certbot/work \
-    --logs-dir ~/certbot-log \
-    certonly \
-    --standalone \
-    --domain $(hostname) \
-    --server http://f30-0.ipa.local/acme/directory \
-    --register-unsafely-without-email
+      --config-dir ~/certbot/config \
+      --work-dir ~/certbot/work \
+      --logs-dir ~/certbot/log \
+      --server http://ipa-ca.ipa.local/acme/directory \
+      register -m ftweedal@redhat.com --agree-tos
 
+Order certificate (if account already registered)::
+
+  % certbot \
+      --config-dir ~/certbot/config \
+      --work-dir ~/certbot/work \
+      --logs-dir ~/certbot-log \
+      --server http://f30-0.ipa.local/acme/directory \
+      certonly --standalone --domain $(hostname)
