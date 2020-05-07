@@ -4,18 +4,19 @@ Exploring FreeIPA Vault
 FreeIPA has a secret store feature called *vaults*.  I have never
 used this feature, except in a minimal way to verify the system is
 working properly.  But I have received some very good questions from
-other developers and the documentation team about the design and
+the documentation team and other developers about the design and
 user experience of FreeIPA Vault.
 
-This blog post is, simply put, a transcript of my exploration of the
-Vault system.  With some cleanups and commentary.  The directions of
-exploration were guided by the questions posed by my colleagues, so
-I'll include some context at various stages.
+This article is an edited transcript of my exploration of the Vault
+system.  The directions of exploration were guided by the questions
+posed by my colleagues, so I'll include extra context in some parts.
+It is *not* intended to be a general introduction to Vault or a user
+guide.  Neither is it comprehensive.
 
 My thanks to my colleague Endi Dewata who wrote much of the Vault
-system and was diligent to document_ `the design_` in the FreeIPA
+system and was diligent to document_ `the design`_ in the FreeIPA
 upstream wiki.  He also provided some detailed responses to the
-questions we received about Vault.
+questions I am investigating.
 
 .. _document: https://www.freeipa.org/page/V4/Password_Vault/Design
 .. _the design: https://www.freeipa.org/page/V4/Password_Vault_1.2
@@ -210,21 +211,28 @@ before user vaults can be added.  But it would be a behavioural
 change and it might be better to leave it alone and document the
 behaviour well.
 
-The lack of ``ipa vaultcontainer-find`` command is another departure
-from the standard FreeIPA interface.  Now that I understand the
-object layout, it is clear that it would be feasible to implement
-it.  But based on my current (limited) knowledge it does not seem
-useful because each user only has one vault container.  Perhaps my
-opinion will change as I learn more.
-
 Finally, observe in the previous transcript that the following
 commands output the same object::
 
   # ipa vaultcontainer-show --all
   # ipa vaultcontainer-show --user=bob  --all
 
-I deduce that the first form implicitly supplies the current user
-(or perhaps more generally, *principal*).  TODO check source code.
+I deduced that the first form implicitly supplies the current user
+(*principal* in general).  A read of the Vault plugin source code
+confirmed this.
+
+
+Lack of ``vaultcontainer-find``
+-------------------------------
+
+The lack of ``ipa vaultcontainer-find`` command is another departure
+from the standard FreeIPA interface.  Now that I understand the
+object layout, it is clear that it would be feasible to implement
+it.
+
+Whether it would be useful or not is another question.  It might be
+useful to list all vault containers that have the current user (i.e.
+the principal executing the command) as an owner.
 
 
 Removing vault containers
@@ -314,9 +322,10 @@ permission to do this::
     cn: alice
     objectclass: ipaVaultContainer, top
 
-So, ``admin`` is the vault (and vault container) *owner*, and
-``alice`` is a *user* of the vault.  Can we supply ``--user``
-multiple times when creating a vault?
+So, ``admin`` is the vault (and vault container) *owner*.  The
+*vault user* is another way of saying that the vault is in the
+``alice`` user vault container.  Can we supply ``--user`` multiple
+times when creating a vault?
 
 ::
 
@@ -326,18 +335,177 @@ multiple times when creating a vault?
 
 That is not valid.  So the following is now clear:
 
-- ``--user`` nominates the vault container *namespace*
+- ``--user`` nominates the vault container *namespace*.
 
-- The corresponding user becomes the (initial) *vault user*
-
-- The user who created the vault is the *vault owner*; the could be
-  the vault user or a different user with the required permissions
+- The user who created the vault is the *vault owner*; this could be
+  the vault user or a different user with the required permissions.
 
 
 Managing vault owners
 ~~~~~~~~~~~~~~~~~~~~~
 
-TODO
+After the steps in the previous section, ``admin`` is the owner of
+the ``alice`` user vault container, and the owner of the
+``vault-alice-1`` vault in that container.  With that in mind, what
+permissions does ``alice`` have in relation to these objects?
+
+Let's start with the ``vault-alice-1`` vault.  After a ``kinit
+alice`` I'll try and archive data into the vault::
+
+
+  # kinit alice
+  Password for alice@IPA.LOCAL: 
+
+  # ipa vault-archive vault-alice-1 --data=ABCD
+  ipa: ERROR: vault-alice-1: vault not found
+
+  # ipa vault-find --user alice
+  ----------------
+  0 vaults matched
+  ----------------
+  ----------------------------
+  Number of entries returned 0
+  ----------------------------
+
+Although ``vault-alice-1`` is in the ``alice`` user vault container,
+``alice`` cannot even see it, let alone archive a datum into it.
+That's unfortunate, and perhaps a bit surprising.  Before I work out
+how to fix it, let me try and add a a *second* vault in the
+``alice`` vault container::
+
+  # ipa vault-add vault-alice-2 --type standard
+  ipa: ERROR: Insufficient access: Insufficient 'add' privilege to add the entry
+    'cn=vault-alice-2,cn=alice,cn=users,cn=vaults,cn=kra,dc=ipa,dc=local'.
+
+That also failed.  ``alice`` has no access to her vault container,
+nor to vaults in the vault container.  But recall that ``admin``
+created these objects.  As a result, the owner is ``admin``.  Next I
+tested my theory that adding ``alice`` as an owner will give her
+access.  To do that I'll have to authenticate as ``admin`` again::
+
+  # kinit admin
+  Password for admin@IPA.LOCAL: 
+
+  # ipa vaultcontainer-add-owner --user alice \
+      --users alice
+    Owner users: admin, alice
+    Vault user: alice
+  ------------------------
+  Number of owners added 1
+  ------------------------
+
+  # kinit alice
+  Password for alice@IPA.LOCAL: 
+
+  # ipa vault-add vault-alice-2 --type standard
+  ---------------------------
+  Added vault "vault-alice-2"
+  ---------------------------
+    Vault name: vault-alice-2
+    Type: standard
+    Owner users: alice
+    Vault user: alice
+
+  # ipa vault-archive vault-alice-1 --user alice \
+      --data=ABCD
+  ipa: ERROR: vault-alice-1: vault not found
+
+``alice`` was added as an *owner* of the ``alice`` user vault
+*container*.  As a result, ``alice`` was able to create a new vault
+(``vault-alice-2``) in the container.  But ``alice`` still has no
+access to the ``vault-alice-1`` vault.  I'll once again become
+``admin`` and add ``alice`` as a *member* of the ``vault-alice-1``
+vault::
+
+  # kinit admin
+  Password for admin@IPA.LOCAL: 
+
+  # ipa vault-add-member --user alice vault-alice-1 --users alice
+    Vault name: vault-alice-1
+    Type: standard
+    Owner users: admin
+    Vault user: alice
+    Member users: alice
+  -------------------------
+  Number of members added 1
+  -------------------------
+
+  # kinit alice
+  Password for alice@IPA.LOCAL: 
+
+  # ipa vault-archive vault-alice-1 --user alice --data=ABCD
+  ----------------------------------------
+  Archived data into vault "vault-alice-1"
+  ----------------------------------------
+
+  # ipa vault-retrieve vault-alice-1 --user alice
+  -----------------------------------------
+  Retrieved data from vault "vault-alice-1"
+  -----------------------------------------
+    Data: ABCD
+
+  # ipa vault-del vault-alice-1
+  ipa: ERROR: Insufficient access: Insufficient 'delete' privilege to delete
+  the entry 'cn=vault-alice-1,cn=alice,cn=users,cn=vaults,cn=kra,dc=ipa,dc=local'.
+
+  # ipa vault-del vault-alice-1
+  ipa: ERROR: Insufficient access: Insufficient 'delete' privilege to delete the entry 'cn=vault-alice-1,cn=alice,cn=users,cn=vaults,cn=kra,dc=ipa,dc=local'.
+
+  # ipa vault-add-member vault-alice-1 --users bob
+    Vault name: vault-alice-1
+    Type: standard
+    Owner users: admin
+    Vault user: alice
+    Member users: alice
+    Failed members: 
+      member user: bob: Insufficient access: Insufficient 'write'
+          privilege to the 'member' attribute of entry
+          'cn=vault-alice-1,cn=alice,cn=users,cn=vaults,cn=kra,dc=ipa,dc=local'.
+      member group: 
+      member service: 
+  -------------------------
+  Number of members added 0
+  -------------------------
+
+Observe that vault *members* are authorised to archive and retrieve
+data in the vault, but cannot delete the vault, add new members,
+etc.  Those privileges are reserved for vault *owners*, as the
+following transcript shows::
+
+  # kinit admin
+  Password for admin@IPA.LOCAL: 
+
+  # ipa vault-add-owner vault-alice-1 --user alice --users bob
+    Vault name: vault-alice-1
+    Type: standard
+    Owner users: admin, bob
+    Vault user: alice
+    Member users: alice
+  ------------------------
+  Number of owners added 1
+  ------------------------
+
+  # kinit bob
+  Password for bob@IPA.LOCAL: 
+
+  # ipa vault-del vault-alice-1 --user alice
+  -----------------------------
+  Deleted vault "vault-alice-1"
+  -----------------------------
+
+``admin`` added ``bob`` as an owner of ``vault-alice-1``.  Then
+``bob`` deleted the vault.
+
+This (rather verbose) exercise helped me understand the vault
+ownership and membership concepts.  I think I have a fair grasp of
+it now.
+
+I do find it strange that vault containers are (intended to be)
+bound to the names of users or service principals.  The user named
+in the vault container is not implicitly granted any permissions on
+that vault.  Instead, the user who creates the vault becomes the
+owner.  The owner can then nominate other principals as *members* or
+joint *owners* of the vault.
 
 
 Vaults for non-existent users
@@ -372,24 +540,88 @@ who doesn't exist?
     cn: carol
     objectclass: ipaVaultContainer, top
 
-That is allowed.  A bit surprising too.  This could happen in real
+That is allowed.  Quite surprising too.  This could happen in real
 use if the operator mistyped the user name.  I tried to think of a
 legitimate use case.  One idea came to mind: to populate a user
 vault with passwords or keys for onboarding when they join the
-organisation.  But of course, you can pre-create the user too, so
-that use case isn't a strong justification.
+organisation.  But you could pre-create the user, so that use case
+isn't a strong justification.
 
-I reached out to others for comment.  If an explanation or an action
-plan emerges, I'll add an update here.
+I reached out to others for comment.  There is consensus that it is
+not intended behaviour.
 
 
+Performance
+-----------
 
-MORE TODO HERE
+Vault is slow.  Operations often require multiple roundtrips to the
+FreeIPA server, as well as backend communication with the KRA.  To
+quote my colleague Christian Heimes:
+
+    The vault was designed for security on an almost paranoid level,
+    not for performance. In order to make IPA vault performant and
+    useful on even a medium scale, we would have to redesign it.
+    With the current design vault operations take seconds. IPA API
+    cannot handle more than a couple of clients simultaneously.
+
+There may be some performance improvements available at the margins,
+but the current design, and in particular the use of the Dogtag KRA,
+does not admit high throughput scenarios or use cases with many
+simultaneous clients.
+
+
+Final words
+-----------
+
+The final word is that this is far from the final word.  There are
+several action items and open questions resulting from this
+investigation, outlined below.
+
+One other matter I did not deal with in this article is the fact
+that the vault commands require a client context to work.  Commands
+executed on an IPA server would normally use server context but
+Vault commands have a lot of client side functionality, e.g. to
+pre-encrypt a secret using a symmetric or public key before sending
+it to the IPA server.  I need to investigate whether the user and
+developer experience can be improved here.
 
 
 Action items
-------------
+~~~~~~~~~~~~
 
-We should add a vault container help topic, i.e. ``ipa help
-vaultcontainer`` should bring up some documentation about vault
-containers.
+#. We should add a vault container help topic, i.e. ``ipa help
+   vaultcontainer`` should bring up some documentation about vault
+   containers.
+
+#. The existing documentation should receive various clarifications
+   and improvements.
+
+#. Creation of vaults (and vault containers) for non-existent users
+   should be prohibited.  This unintended behaviour should not be
+   documented or should be documented as a known issue that will be
+   fixed, so that users do not rely on it.
+
+
+Open questions
+~~~~~~~~~~~~~~
+
+#. We could implement ``vaultcontainer-add``, but vault containers
+   are automatically created "just in time" by ``vault-add``.
+   Therefore a ``vaultcontainer-add`` command doesn't bring any
+   value except to bring the Vault command set into line with most
+   other FreeIPA features.  So should we do it, or not?
+
+#. Should we implement ``vaultcontainer-find``?  What should it do?
+
+#. ``vault-find`` lists all vaults in a given container.  There is
+   no way to list all vaults (that are visible to the user).  Should
+   we enhance ``vault-find`` with an option to list all (visible)
+   vaults in all vault containers?
+
+A final and much broader open question is *what should be the future
+of the Vault feature*?  There are many "secret store" solutions
+available these days.  If FreeIPA Vault is not "best in class" for
+solving customers' and users' real use cases, how can we get it
+there?  If that would be an huge engineering effort, then retirement
+should be on the table.  Of course it would be essential to develop
+credible migration plans for existing Vault users.
