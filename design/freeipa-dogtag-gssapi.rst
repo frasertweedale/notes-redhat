@@ -223,40 +223,25 @@ Server configuration changes
 SSSD
 ^^^^
 
-The ``sssd-dbus`` package, which provides the *InfoPipe* D-Bus
-responder, is required.
-
 SSSD on servers must be configured to allow *mod_lookup_identity* to
 query a principal's ``memberOf`` attribute.
 
 Example ``/etc/sssd/sssd.conf`` configuration (indicative only)::
-
-  [sssd]
-  services = nss, sudo, pam, ssh, ifp
-  ...
 
   [domain/EXAMPLE.COM]
   ...
   ldap_user_extra_attrs = roles:memberOf
 
   [ifp]
-  allowed_uids = apache
+  allowed_uids = apache, ipaapi, root
   user_attributes = +roles
 
 The attribute is exposed under the name ``roles``.  The name
 ``memberOf`` seems to have special treatment and does not result in
 the required behaviour.
 
-
-SELinux
-^^^^^^^
-
-SELinux must be configured to allow Apache to query the SSSD
-InfoPipe.
-
-::
-
-  $ sudo setsebool -P httpd_dbus_sssd 1
+The SELinux boolean ``httpd_dbus_sssd`` must be ``on`` and this is
+already the case.
 
 
 gssproxy
@@ -292,7 +277,8 @@ Example ``/etc/gssproxy/10-ipa.conf`` configuration::
 httpd
 ^^^^^
 
-The ``mod_lookup_identity`` package is required.
+The ``mod_lookup_identity`` package is required (and is already
+enabled).
 
 ``/etc/httpd/conf.d/ipa-pki-proxy.conf`` shall be updated to perform
 SPNEGO authentication when a client requests Dogtag resources.
@@ -328,8 +314,8 @@ framework, which we control.
 Client certificate
 ''''''''''''''''''
 
-The ``NSSVerifyClient require`` directive shall be relaxed to
-``NSSVerifyClient optional``.  This is needed so that GSS-API
+The ``SSLVerifyClient require`` directive shall be relaxed to
+``SSLVerifyClient optional``.  This is needed so that GSS-API
 authentication can be used for affected resources.  Codepaths that
 are configured to present a certificate will still do so.
 
@@ -485,7 +471,6 @@ Upgrade
 Explicit upgrade steps that will be required include:
 
 - Update SSSD config (described above)
-- ``setsebool -P httpd_dbus_sssd 1`` (described above)
 - Update ``/etc/pki/pki-tomcat/server.xml`` (described above)
 - Add ``ExternalAuthenticationValve`` to
   ``/etc/pki/pki-tomcat/Catalina/localhost/ca.xml``.
