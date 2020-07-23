@@ -121,3 +121,93 @@ to ``docker/podman push`` which must be done separately).
 
 Or you can run controller locally via ``operator-sdk run``.
 
+
+
+Create CRD (requires cluster admin privs)::
+
+  ftweedal% oc create -f deploy/crds/idmocp.redhat.com_idms_crd.yaml
+  customresourcedefinition.apiextensions.k8s.io/idms.idmocp.redhat.com created
+
+Create service account, role and role binding::
+
+  ftweedal% oc create -f deploy/service_account.yaml
+  serviceaccount/idmocp created
+
+  ftweedal% oc create -f deploy/role.yaml
+  role.rbac.authorization.k8s.io/idmocp created
+
+  ftweedal% oc create -f deploy/role_binding.yaml
+  rolebinding.rbac.authorization.k8s.io/idmocp created
+
+
+Running the operator **locally**, against the **remote** cluster::
+
+  ftweedal% operator-sdk run local --watch-namespace ftweedal-operator
+  INFO[0000] Running the operator locally; watching namespace "ftweedal-operator"
+  {"level":"info","ts":1595503782.5421903,"logger":"cmd","msg":"Operator Version: 0.0.1"}
+  {"level":"info","ts":1595503782.5422142,"logger":"cmd","msg":"Go Version: go1.14.3"}
+  {"level":"info","ts":1595503782.5422215,"logger":"cmd","msg":"Go OS/Arch: linux/amd64"}
+  {"level":"info","ts":1595503782.5422294,"logger":"cmd","msg":"Version of operator-sdk: v0.18.1"}
+  {"level":"info","ts":1595503782.5434256,"logger":"leader","msg":"Trying to become the leader."}
+  {"level":"info","ts":1595503782.5434394,"logger":"leader","msg":"Skipping leader election; not running in a cluster."}
+  I0723 21:29:45.014098  202077 request.go:621] Throttling request took 1.047337527s, request: GET:https://api.permanent.idmocp.idm.lab.bos.redhat.com:6443/apis/migration.k8s.io/v1alpha1?timeout=32s
+  {"level":"info","ts":1595503786.3361971,"logger":"controller-runtime.metrics","msg":"metrics server is starting to listen","addr":"0.0.0.0:8383"}
+  {"level":"info","ts":1595503786.3374689,"logger":"cmd","msg":"Registering Components."}
+  {"level":"info","ts":1595503786.33769,"logger":"cmd","msg":"Skipping CR metrics server creation; not running in a cluster."}
+  {"level":"info","ts":1595503786.3377118,"logger":"cmd","msg":"Starting the Cmd."}
+  {"level":"info","ts":1595503786.338082,"logger":"controller-runtime.manager","msg":"starting metrics server","path":"/metrics"}
+  {"level":"info","ts":1595503786.3384473,"logger":"controller-runtime.controller","msg":"Starting EventSource","controller":"idm-controller","source":"kind source: /, Kind="}
+  {"level":"info","ts":1595503786.7392015,"logger":"controller-runtime.controller","msg":"Starting EventSource","controller":"idm-controller","source":"kind source: /, Kind="}
+  {"level":"info","ts":1595503787.0400546,"logger":"controller-runtime.controller","msg":"Starting Controller","controller":"idm-controller"}
+  {"level":"info","ts":1595503787.04015,"logger":"controller-runtime.controller","msg":"Starting workers","controller":"idm-controller","worker count":1}
+  {"level":"info","ts":1595504035.8039277,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504036.0934615,"logger":"controller_idm","msg":"Deploying IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504036.5116532,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504036.7884111,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504038.6349363,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504044.5828426,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504066.7951272,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504066.7953176,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+
+Create the IDM object::
+
+  ftweedal% cat deploy/crds/idmocp.redhat.com_v1alpha1_idm_cr.yaml
+  apiVersion: idmocp.redhat.com/v1alpha1
+  kind: IDM
+  metadata:
+    name: example-idm
+  spec:
+    realm: IPA.TEST
+
+  ftweedal% oc create -f deploy/crds/idmocp.redhat.com_v1alpha1_idm_cr.yaml                                                                                             
+  idm.idmocp.redhat.com/example-idm created                                                                
+
+
+List and inspect the ``idm`` object via ``oc get``::
+
+  ftweedal% oc get idms
+  NAME          AGE
+  example-idm   10m
+
+  ftweedal% oc get idm example-idm -o yaml
+  apiVersion: idmocp.redhat.com/v1alpha1
+  kind: IDM
+  metadata:
+    creationTimestamp: 2020-07-23T11:33:30Z
+    generation: 1
+    name: example-idm
+    namespace: ftweedal-operator
+    resourceVersion: "3129192"
+    selfLink: /apis/idmocp.redhat.com/v1alpha1/namespaces/ftweedal-operator/idms/example-idm
+    uid: cd866bdf-052b-4ff7-b538-ae72436a90fa
+  spec:
+    realm: IPA.TEST
+  status:
+    servers:
+    - example-idm-pod52s84
+
+Observe that the pod was created.  Via ``oc exec`` I confirmed that the pod
+container is using the ``freeipa-server`` container image::
+
+  ftweedal% oc exec example-idm-pod52s84 -- which ipa-server-configure-first
+  /usr/sbin/ipa-server-configure-first
