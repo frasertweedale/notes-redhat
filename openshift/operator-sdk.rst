@@ -1,5 +1,5 @@
-Using operator-sdk
-==================
+First steps
+===========
 
 ::
 
@@ -140,7 +140,10 @@ Create service account, role and role binding::
   rolebinding.rbac.authorization.k8s.io/idmocp created
 
 
-Running the operator **locally**, against the **remote** cluster::
+Running the operator locally
+============================
+
+Run the operator **locally**, against the **remote** cluster::
 
   ftweedal% operator-sdk run local --watch-namespace ftweedal-operator
   INFO[0000] Running the operator locally; watching namespace "ftweedal-operator"
@@ -160,16 +163,8 @@ Running the operator **locally**, against the **remote** cluster::
   {"level":"info","ts":1595503786.7392015,"logger":"controller-runtime.controller","msg":"Starting EventSource","controller":"idm-controller","source":"kind source: /, Kind="}
   {"level":"info","ts":1595503787.0400546,"logger":"controller-runtime.controller","msg":"Starting Controller","controller":"idm-controller"}
   {"level":"info","ts":1595503787.04015,"logger":"controller-runtime.controller","msg":"Starting workers","controller":"idm-controller","worker count":1}
-  {"level":"info","ts":1595504035.8039277,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
-  {"level":"info","ts":1595504036.0934615,"logger":"controller_idm","msg":"Deploying IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
-  {"level":"info","ts":1595504036.5116532,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
-  {"level":"info","ts":1595504036.7884111,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
-  {"level":"info","ts":1595504038.6349363,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
-  {"level":"info","ts":1595504044.5828426,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
-  {"level":"info","ts":1595504066.7951272,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
-  {"level":"info","ts":1595504066.7953176,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
 
-Create the IDM object::
+Now to make the operator do something, create an IDM object::
 
   ftweedal% cat deploy/crds/idmocp.redhat.com_v1alpha1_idm_cr.yaml
   apiVersion: idmocp.redhat.com/v1alpha1
@@ -182,6 +177,17 @@ Create the IDM object::
   ftweedal% oc create -f deploy/crds/idmocp.redhat.com_v1alpha1_idm_cr.yaml                                                                                             
   idm.idmocp.redhat.com/example-idm created                                                                
 
+Additional operator output indicates the detection of the creation of the idm
+object and deployment of the pod::
+
+  {"level":"info","ts":1595504035.8039277,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504036.0934615,"logger":"controller_idm","msg":"Deploying IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504036.5116532,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504036.7884111,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504038.6349363,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504044.5828426,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504066.7951272,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
+  {"level":"info","ts":1595504066.7953176,"logger":"controller_idm","msg":"Reconciling IDM","Request.Namespace":"ftweedal-operator","Request.Name":"example-idm"}
 
 List and inspect the ``idm`` object via ``oc get``::
 
@@ -211,3 +217,26 @@ container is using the ``freeipa-server`` container image::
 
   ftweedal% oc exec example-idm-pod52s84 -- which ipa-server-configure-first
   /usr/sbin/ipa-server-configure-first
+
+
+Deploying the operator
+======================
+
+TODO
+
+
+Creating volumes
+================
+
+The IDM operator needs to create a volume to be mounted in the container.
+There are two ways to achieve this:
+
+1. The controller manually creates a ``PersistentVolumeClaim`` (PVC), as well
+   as manually creating the pod.  The pod spec will reference the PVC.
+
+2. Using a ``StatefulSet``, we can specify pod and PVC *templates*.  The
+   ``StatefulSet`` will automatically create the PVC and pod for each replica.
+
+The next step for the FreeIPA operator is to update it to create a
+``StatefulSet`` so that the pod has a volume for data storage, and
+modify the pod command to actually run the FreeIPA server.
