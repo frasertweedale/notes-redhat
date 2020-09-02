@@ -10,7 +10,7 @@ In container::
   root@970fb0bade0a:~# openssl ec -in privkey.pem -pubout -out pubkey.pem
   read EC key
   writing EC key
-  root@970fb0bade0a:~# vi ci-roots.pem    # write valid roots to this file
+  root@970fb0bade0a:~# vi ca-roots.pem    # write valid roots to this file
   root@970fb0bade0a:~# mkdir -p /data/keys
   root@970fb0bade0a:~# cp * /data/keys
 
