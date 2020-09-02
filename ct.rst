@@ -1,6 +1,6 @@
 ::
 
-  podman run -it lanrat/ct
+  podman run -p 6962:6962 -it lanrat/ct
 
 In container::
 
