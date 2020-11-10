@@ -39,7 +39,7 @@ Environment (ACME) server in their network environment.
 
 # Introduction
 
-Automatic Certificate Management Environment (ACME) [@!RFC8555]
+Automatic Certificate Management Environment [@!RFC8555]
 specifies a protocol by which a client may, in an automatable way,
 prove control of identifiers and obtain a certificate from an
 Certificate Authority (the ACME server).  However, it did not
@@ -55,8 +55,8 @@ use a particular server.  Explicitly configuring ACME clients to use
 a particular ACME server presents an administrative burden.
 
 This document specifies a mechanism by which ACME clients can locate
-an ACME server using the Uniform Resource Identifier (URI) DNS
-resource record [@?RFC7553].
+an ACME server using DNS-Based Service Discovery
+[@!RFC6763].
 
 # Terminology
 
@@ -66,23 +66,150 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
 BCP 14 [@?RFC2119] [@?RFC8174] when, and only when, they appear in all
 capitals, as shown here.
 
-# DNS URI Record
+# DNS-SD Profile
 
-The URI resource record [@?RFC7553] facilitates client discovery of
-ACME server(s) for a given DNS parent domain name ("parent domain"
-having the meaning given in [@?RFC8552]).  The owner name of the URI
-record SHALL be the parent domain with the label "\_acme-server"
-prepended to it.  The target of the URI record SHALL be the URI
-[@!RFC3986] of the directory resource of the target ACME server,
-enclosed in double quotes (").  For example:
+## Service Instance Name
 
-```
-$ORIGIN example.com.
-_acme-server IN URI 10 1 "https://ca.example.com/acme/directory"
-```
+A DNS-SD Service Instance Name has the form:
 
-There MUST be exactly zero or one URI records for the
-"\_acme-server" node.
+  <Instance> . <Service> . <Domain>
+
+The <Service> portion of the Service Instance Name SHALL be
+"\_acme-server.\_tcp".
+
+The <Instance> portion of the Service Instance Name MAY be arbitrary
+[@!RFC5198] text.  That is, this specification does not
+further constrain what is allowed by [@!RFC6763].
+
+## PTR Records (Service Instance Enumeration)
+
+ACME clients discover ACME service instances by querying DNS PTR
+[@!RFC1035] records with the name "\_acme-server.\_tcp.<Domain>",
+where <Domain> is a "parent domain" [@?RFC8552] known to or derived
+by the client.  Network administrators enable ACME Service Discovery
+by creating such PTR records.
+
+The target of each PTR record MUST be an ACME Service Instance Name,
+which MUST have the same <Service> portion.  The Service Instance
+Name SHOULD have the same <Domain> portion as the PTR owner name.
+Administrators should delegate Service Instance Resolution to other
+domains with caution; doing so may remove control of service
+priorities and capability endorsement to a third party.  Clients
+MUST ignore a Service Instance Name if its <Domain> portion differs
+from the <Domain> portion owner of the PTR record, unless explicitly
+configured otherwise.
+
+## SRV Records
+
+Each ACME service, identified by its Service Instance Name, MUST
+have an SRV [@!RFC2782] record giving the domain name and TCP port
+where an ACME server may be found.  Each service instance SHOULD
+have exactly one SRV record.
+
+This specification alters the semantics of the SRV priority field
+from that given by [@!RFC2782] and [@!RFC6763].  For ACME Service
+Discovery, the scope of the SRV priority field is the set of all SRV
+records for all Service Instance Names enumerated for the parent
+domain.  This allows network administrators to establish an order of
+preference among multiple distinct ACME service instance.
+
+Because of the altered semantics of the SRV priority field,
+implementers SHALL ignore the recommendation of [@!RFC6763] that
+where a single service instance is described by exactly one SRV
+record, the priority and weight fields of the SRV record should be
+set to zero.
+
+## TXT Records
+
+Each ACME service, identified by its Service Instance Name, MUST
+have a TXT [@!RFC1035] record giving additional data about the
+service.  Each service instance SHOULD have exactly one TXT record.
+
+The TXT record MUST be structured according to [@!RFC6763]
+Section 6.  Attributes and their interpretations are set out in the
+following subsections.  The order of the attributes in the TXT
+record is insignificant.
+
+### "path" attribute (ACME Directory Path)
+
+The "path" attribute gives the path at which the ACME directory
+resource is located on the HTTP server identified by the service
+instance's SRV record.  The attribute value MUST be a valid
+[@!RFC3986]. This attribute is REQUIRED.
+
+### "i" attribute (ACME Identifier Types)
+
+The "i" attribute gives a list of ACME identifier types supported by
+the service.  Its value MUST be a comma-separated list of ACME
+identifier types, without whitespace.  The list MAY be empty, and
+SHOULD only include values registered in the IANA ACME Identifier
+Type registry (TODO ref?).
+
+The list of identifier types MAY be a subset of the identifier types
+actually supported by the ACME server.  As such, this attribute
+constitutes the network administrators' endorsement to use the
+service instance for the listed identifier types only, but does not
+offer a means of enforcement.  Clients MUST ignore services whose
+"i" attribute does not list the identifier type(s) they require.
+
+The "i" attribute is REQUIRED.  An empty list of identifier means
+that the network administrators acknowledge the presense of the ACME
+service, but do not endorse its use.  Clients MUST ignore a service
+instance if its "i" attribute is not present, or present with no
+value, or present with an empty value.
+
+### "v" attribute (ACME Validation Methods)
+
+The "v" attribute gives a list of ACME validation methods (also
+called "challenge types") supported by the service.  Its value MUST
+be a comma-separated list of ACME validation methods, without
+whitespace.  The list MAY be empty, and SHOULD only include values
+registered in the IANA ACME Validation Methods registry (TODO ref?).
+
+The list of validation methods MAY be a subset of the validation
+methods actually supported by the ACME server.  As such, this
+attribute constitutes the network administrators' endorsement to use
+only the listed validation methods with this service, but does not
+offer a means of enforcement.
+
+The "v" attribute is OPTIONAL.  If the "v" attribute is present with
+a value (including an empty value), and that value does not include
+a validation method the client is capable and willing to use, the
+client MUST ignore the service instance.  If the "v" attribute is
+present with no value, the client MUST regard it as having an empty
+value.  If the "v" value is not present, the service is implicitly
+endorsed for all validation methods; the client SHALL assume that
+the server will support a validation method that the client is
+capable and willing to use.
+
+## Examples
+
+An organisation operates a corporate ACME server
+"https://ca.corp.example/acme" for issuing both TLS server
+certificates (identifier type "dns") and user S/MIME certificates
+(identifier type "email").
+
+In case their own ACME service cannot be reached, the administrators
+will advise clients to fall back to the public "Certs 4 All" service
+at "https://certs4all.example/acme/v2".  This service only supports
+"dns" identifiers.
+
+The following DNS configuration achieves these goals:
+
+    $ORIGIN corp.example.
+
+    _acme-server._tcp PTR CorpCA._acme-server._tcp
+    _acme-server._tcp PTR C4A._acme-server._tcp
+
+    CorpCA._acme-server._tcp SRV 10 0 443 ca.corp.example.
+    CorpCA._acme-server._tcp TXT "path=/acme" "i=email,dns"
+
+    C4A._acme-server._tcp    SRV 20 0 443 certs4all.example.
+    C4A._acme-server._tcp    TXT "path=/acme/v2" "i=dns"
+
+Note that the "CorpCA" SRV priority of 10 ensures that "dns" clients
+will first attempt to use the "CorpCA" service.  If "CorpCA" is
+unavailable they will try "C4A", which has an SRV priority of 20.
 
 
 # Client Behaviour
@@ -101,9 +228,10 @@ unless its configuration explicitly enables it.
 
 ## Candidate Parent Domains
 
-To perform service discovery, the ACME client needs a list of
-candidate parent domains.  The client will query the associated URI
-records for the candidate parent domains.
+To perform service discovery, the ACME client needs a prioritised
+list of candidate parent domains.  The client will perform DNS-Based
+Service Discovery in each parent domain until a suitable service is
+found, or the list is exhausted.
 
 If an ACME client provides for explicit configuration of parent
 domains to use for service discovery, and such configuration is
@@ -131,30 +259,86 @@ subdomain of another candidate parent domain B, the client MUST
 preference A higher than B.
 
 
-## DNS URI Queries and Validation
+## DNS-SD Queries and Validation
 
 Service discovery begins with the most preferred candidate parent
-domain.
+domain.  For each candidate parent domain, the client performs
+DNS-SD Service Instance Enumeration and Service Instance Resolution
+until a suitable server is found, or the candidate parent domains
+are exhausted.
 
-The ACME client SHALL prepend the label "\_acme-server" to the
-candidate parent domain name and query the DNS URI record for the
-resulting domain name.  If any records are returned, the ACME client
-SHALL select exactly one of the target URIs.  The client SHALL
-perform an HTTPS GET request for the target URI and SHALL attempt to
+### Service Instance Enumeration
+
+The ACME client SHALL query the DNS PTR records for
+"<Service>.<Domain>" where <Service> is "\_acme-server.\_tcp" and
+<Domain> is the candidate parent domain name.  For each record
+returned, the client SHALL verify that the target is an ACME Service
+Instance Name, i.e. that is has the form:
+
+    <Instance>.<Service>.<TargetDomain>
+
+where instance is arbitrary Net-Unicode text, and SHALL ignore
+targets that are not valid ACME Service Instance Names.
+
+If <TargetDomain> is different from <Domain>, the network
+administrator of <Domain> has delegated control of the location,
+priority and service attributes of the service instance to
+<TargetDomain>, which may be a third party.  Clients MUST ignore a
+Service Instance Name if its <Domain> portion differs from the
+<Domain> portion owner of the PTR record, unless explicitly
+configured otherwise.
+
+### Service Instance Resolution
+
+The ACME client now has a set of ACME Service Instance Names.  For
+each ACME Service Instance Name, the client SHALL query the SRV and
+TXT records for that name, and collect the results as (SRV,TXT)
+pairs.  The client could do this sequentially, or with some degree
+of concurrency.  The client SHALL ignore any service instance that
+is missing either the SRV or TXT record (or both).  Although each
+service instance SHOULD have exactly one SRV record and exactly TXT
+record, if multiple SRV and/or multiple TXT records are returned,
+the client SHALL use the cartesian product of these.
+
+The client MUST exclude any service instances whose TXT "path"
+attribute is missing or invalid, or whose "i" or "v" attributes do
+not contain acceptable values.
+
+### Verifying the Server
+
+The client now has a list of suitable ACME service instances
+represented as (SRV,TXT) pairs.  The client SHALL attempt to contact
+servers in an order determined by the SRV priority and weight
+fields, according to [@!RFC2782].
+
+For each attempt, the client SHALL construct the URI:
+
+    https://<Target>:<Port><Path>
+
+where <Target> is the SRV target, <Port> is the SRV port value and
+<Path> is the value of the TXT "path" attribute.  If the SRV value
+is 443 the client MAY omit ":<Port>".  The client SHALL perform an
+HTTPS [@!RFC7230] GET request for this URI and SHALL attempt to
 parse the response body as an ACME directory object.  If successful,
-service discovery has succeeded; the client SHALL use the target of
-the URI record as the ACME server, and MUST NOT process the
-remaining candidate parent domains.
+service discovery has succeeded; the client SHALL use the
+constructed URI as the ACME server, and SHOULD NOT process the
+remaining service instances or candidate parent domains.
 
-Otherwise, service discovery for the current parent domain has
-failed.  Either there is no "\_acme-server" URI record under the
-parent domain, or the target URI value is not well formed, or the
-HTTP request failed, or the HTTP response is not a valid ACME
-directory object.  In this case, the client MAY retry service
-discovery with the next most preferred candidate parent domain.  The
-client MAY continue retrying until no candidate parent domains
-remain, or MAY give up earlier (e.g. after a fixed number of
-attempts).
+If none of the service instances yield a valid ACME directory
+object, service discovery for the current parent domain has failed.
+Failure modes include:
+
+- No PTR records at "\_acme-server.\_tcp.<Domain>"
+
+- No eligible service instances, according to the TXT attributes
+
+- All HTTPS requests to eligible service instances either failed
+  or did not response with a valid ACME directory object.
+
+In this case, the client MAY retry service discovery with the next
+most preferred candidate parent domain.  The client MAY continue
+retrying until no candidate parent domains remain, or MAY give up
+earlier (e.g. after a fixed number of attempts).
 
 If service discovery does not succeed, an ACME client MAY fall back
 to a default ACME server (e.g. a publicly accessible ACME server).
@@ -181,36 +365,39 @@ ACME server that may be able to issue the certificate.
 
 # IANA Considerations
 
-## Underscored Node Name for ACME Service Discovery
+## "acme-server" Service Name Registration
 
-Per RFC 8552, please add the following entry to the "Underscored and
-Globally Scoped DNS Node Names" registry:
+Per [@?RFC6335], please add the following entry to the Service Name
+and Transport Protocol Port Number Registry:
 
+    Service Name             acme-server
+    Port Number              N/A
+    Transport Protocol(s)    tcp
+    Description              Automated Certificate Management Environment
+                               (ACME) server
+    Assignee                 IESG <iesg@ietf.org>
+    Contact                  IETF Chair <chair@ietf.org>
+    Reference                (this document)
+    Assignment Notes         Defined TXT keys: path, i, v
 
-```
-   +---------+--------------+-----------------+
-   | RR Type | _NODE NAME   | Reference       |
-   +---------+--------------+-----------------+
-   | URI     | _acme-server | {this document} |
-   +---------+--------------+-----------------+
-```
 
 # Security Considerations
 
 ## TLS and Certificate Validation
 
-Use of TLS is REQUIRED by the ACME specification [@!RFC8555].  X.509
-[@!RFC5280] supports the Uniform Resource Identifier name type in
-the Subject Alternative Name extension, but this name type is not
-widely supported by TLS clients or certificates.  HTTP Over TLS
-[@?RFC2818] does not describe the use of a URI-ID for HTTP services.
-Therefore when an ACME server was located via service discovery its
-certificate MUST be validated according to both RFC 5280 and
-[@!RFC6125] and MUST match the host from the target URI against the
-dNSName (if the host is a reg-name) or iPAddress (if the host is an
-IP address) value(s) in the Subject Alternative Name extension.  The
-client SHOULD NOT use a URI-ID when validating the server's
-certificate.
+Use of TLS is REQUIRED by [@!RFC8555].  [@!RFC5280] supports the
+uniformResourceIdentifier and [@?RFC4985] name types in the Subject
+Alternative Name extension, and [@!RFC6125] describes the DNS-ID,
+URI-ID and SRV-ID identifier types and how to validate them against
+a server's X.509 certificates.
+
+However, the uniformResourceIdentifier and SRVName name types are
+not in widespread use and not widely supported by TLS libraries or
+certificate authorities.  [@?RFC2818] does not describe the use of
+either of these name types for HTTP services.  Therefore when an
+ACME server was located via service discovery its certificate MUST
+be validated according to both [@!RFC5280] and [@!RFC6125], using
+the target of the service's SRV record as the DNS-ID.
 
 
 ## Parent Domain Selection
@@ -228,12 +415,12 @@ consider which methods of determining the parent domain(s) are
 appropriate for their use cases, and the security implications of
 their chosen methods.
 
-An ACME client may form candidate parent domains by removing one or
-more labels from the left side of some other DNS name (e.g. the host
-name of the client's machine).  If too many labels are removed, the
-ACME client could perform DNS queries in zones outside the control
-of the organisation that operates the ACME client.  As a result, the
-ACME client could locate and use an ACME server that the
+An ACME client might derive candidate parent domains by removing one
+or more labels from the left side of some other DNS name (e.g. the
+host name of the client's machine).  If too many labels are removed,
+the ACME client could perform DNS queries in zones outside the
+control of the organisation that operates the ACME client.  As a
+result, the ACME client could locate and use an ACME server that the
 organisation does not intend.
 
 To mitigate this risk, it is RECOMMENDED that clients limit the
@@ -246,7 +433,7 @@ also mitigate this risk.
 
 ## DNS Security
 
-Without ACME service discovery, an ACME client must be configured or
+Without ACME Service Discovery, an ACME client must be configured or
 hard-coded to use a particular ACME server, specified as the HTTPS
 URI of the server's directory resource.  Typically the host will be
 a DNS name rather than an IP address, and one or more DNS queries
@@ -261,8 +448,8 @@ constitute a denial of service attack against the client, against
 parties that validate certificates issued to the client, or against
 the target server.
 
-Therefore it is RECOMMENDED that URI records used for ACME service
-discovery be secured using DNSSEC.  It is RECOMMENDED that ACME
+Therefore it is RECOMMENDED that URI records used for ACME Service
+Discovery be secured using DNSSEC.  It is RECOMMENDED that ACME
 clients make DNS URI queries via DNSSEC-validating stub or recursive
 resolvers.
 
@@ -271,6 +458,82 @@ queries.  For example, a client could query PTR records to find a
 host name, from which it derives a candidate parent domain.
 Implementers must consider the security of DNS data used for parent
 domain selection.
+
+
+## Service Instance Delegation
+
+As noted in [@!RFC6763] Section 4.2, it is possible for a service
+enumeration in one domain to return the names of services in a
+different domain.  It is necessary to consider the security
+implications for ACME Service Discovery in this scenario.
+
+Consider an organisation that operates a corporate ACME server
+"https://ca.corp.example/acme" for issuing user "email"
+certificates, and intends to use the public ACME CA
+"https://certs4all.example/acme/v2" for "dns" certificates.  If the
+public CA has DNS-SD service instance records in their own domain:
+
+    $ORIGIN certs4all.example.
+    C4A._acme-server._tcp SRV 10 0 443 certs4all.example.
+    C4A._acme-server._tcp TXT "path=/acme/v2" "i=dns"
+
+then the network administrators could avoid maintaining variants of
+these records in their own domain, with a configuration such as:
+
+    $ORIGIN corp.example.
+
+    _acme-server._tcp PTR CorpCA._acme-server._tcp
+    _acme-server._tcp PTR C4A._acme-server._tcp.certs4all.example.
+
+    CorpCA._acme-server._tcp SRV 10 0 443 ca.corp.example.
+    CorpCA._acme-server._tcp TXT "path=/acme" "i=email"
+
+This is a risky configuration because, for some of the service
+instances, a third party controls both SRV priority and weight, and
+the TXT attributes, which are used to select eligible service
+instances.  In the configuration above, everything works as
+intended.  ACME "email" clients go to "CorpCA" and "dns" clients go
+to "C4A".  But if the administrators of certs4all.example change
+their service instance records to:
+
+    $ORIGIN certs4all.example.
+    C4A._acme-server._tcp SRV 5 0 443 certs4all.example.
+    C4A._acme-server._tcp TXT "path=/acme" "i=dns,email"
+
+then the organisation's "email" clients will now prefer "C4A".  This
+could lead to denial of service (C4A may not be trusted by mail
+agents and systems) or breaches of privacy (corporate email
+addresses will be exposed to the CA, and possibly to the world via
+Certifiate Transparency [@?RFC6962])
+
+For these reasons, delegation of service instance records to third
+parties is NOT RECOMMENDED.  As stated elsewhere in this document,
+clients MUST ignore Service Instance Names whose <Domain> part
+differs from the parent domain that owns the PTR records, unless
+explicitly configured otherwise.
+
+
+## Multicast DNS
+
+DNS-SD is compatible with Multicast DNS [@?RFC6762].  Devices
+on the local network can advertise their services by responding to
+mDNS Service Instance Enumeration (PTR) queries.  For example, a
+client can search for printers by querying "\_printer.\_tcp.local.",
+and printers respond with their Service Instance Names (and will
+also respond to requests for the associated SRV and TXT records).
+
+There may be real use cases for ACME service discovery via
+DNS-SD/mDNS.  But there are also risks.  The same issues arise as
+for service instance delegation, but these are compounded because
+the parent domain is always "local." and service providers
+(devices) may be ephemeral.  This increases the risk of denial
+of service for ACME clients and relying parties.
+
+The author of this document does not wish to dissuade people from
+considering use cases and developing and analysing an ACME service
+discovery profile for DNS-SD/mDNS.  It remains an open topic.  This
+specification only requires that a client MUST NOT use DNS-SD/mDNS
+for ACME Service Discovery unless explicitly configured to do so.
 
 
 {backmatter}
