@@ -13,7 +13,7 @@ toc = "yes"
 [seriesInfo]
 status = "standard"
 name = "Internet-Draft"
-value = "draft-tweedale-acme-discovery-00"
+value = "draft-tweedale-acme-discovery-01"
 stream = "IETF"
 
 date = 2020-10-22T00:00:00Z
