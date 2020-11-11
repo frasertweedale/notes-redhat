@@ -31,9 +31,9 @@ organization = "Red Hat"
 
 .# Abstract
 
-This document specifies a service discovery mechanism that enables
-capable clients to locate an Automated Certificate Management
-Environment (ACME) server in their network environment.
+This document specifies a DNS-based Service Discovery (DNS-SD)
+profile that enables Automated Certificate Management Environment
+(ACME) clients to locate ACME servers in their network environment.
 
 {mainmatter}
 
