@@ -1,9 +1,11 @@
-all: acme-discovery
+DOCS = $(basename $(shell ls *.md))
+
+all: $(addprefix output/,$(DOCS))
 
 %.xml: %.md tweak.xsl
 	mmark $< | xsltproc tweak.xsl - > $@
 
-%: %.xml
+output/%: %.xml
 	$(eval NAME=$(shell xmllint $< --xpath "string(/rfc/@docName)"))
 	mkdir -p $@
 	cp $< $@/$(NAME).xml
