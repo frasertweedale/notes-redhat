@@ -151,7 +151,7 @@ The "i" attribute gives a list of ACME identifier types supported by
 the service.  Its value MUST be a comma-separated list of ACME
 identifier types, without whitespace.  The list MAY be empty, and
 SHOULD only include values registered in the IANA ACME Identifier
-Type registry (TODO ref?).
+Type registry [@?IANA-ACME-ID].
 
 The list of identifier types MAY be a subset of the identifier types
 actually supported by the ACME server.  As such, this attribute
@@ -172,7 +172,8 @@ The "v" attribute gives a list of ACME validation methods (also
 called "challenge types") supported by the service.  Its value MUST
 be a comma-separated list of ACME validation methods, without
 whitespace.  The list MAY be empty, and SHOULD only include values
-registered in the IANA ACME Validation Methods registry (TODO ref?).
+registered in the IANA ACME Validation Methods registry
+[@?IANA-ACME-VAL].
 
 The list of validation methods MAY be a subset of the validation
 methods actually supported by the ACME server.  As such, this
@@ -376,7 +377,7 @@ ACME server that may be able to issue the certificate.
 ## "acme-server" Service Name Registration
 
 Per [@?RFC6335], please add the following entry to the Service Name
-and Transport Protocol Port Number Registry:
+and Transport Protocol Port Number Registry [@?IANA-SN]:
 
     Service Name             acme-server
     Port Number              N/A
@@ -545,3 +546,22 @@ for ACME Service Discovery unless explicitly configured to do so.
 
 
 {backmatter}
+
+<reference anchor="IANA-ACME-ID" target="https://www.iana.org/assignments/acme/acme.xhtml#acme-identifier-types">
+    <front>
+        <title>ACME Identifier Types</title>
+        <author><organization>IANA</organization></author>
+    </front>
+</reference>
+<reference anchor="IANA-ACME-VAL" target="https://www.iana.org/assignments/acme/acme.xhtml#acme-validation-methods">
+    <front>
+        <title>ACME Validation Methods</title>
+        <author><organization>IANA</organization></author>
+    </front>
+</reference>
+<reference anchor="IANA-SN" target="https://www.iana.org/assignments/service-names-port-numbers/">
+    <front>
+        <title>Service Name and Transport Protocol Port Number Registry</title>
+        <author><organization>IANA</organization></author>
+    </front>
+</reference>

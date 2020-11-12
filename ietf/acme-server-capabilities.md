@@ -80,7 +80,7 @@ capabilities.  All of these new fields are OPTIONAL (as is the
 The "supportedIdentifierTypes" field lists identifier types
 supported by the server.  Its value SHALL be a JSON array of JSON
 strings, each of which SHOULD be a value that is registered in the
-IANA ACME Identifier Types registry (TODO ref?).  The array SHOULD
+IANA ACME Identifier Types registry [@?IANA-ACME-ID].  The array SHOULD
 include each identifier type supported by the server.
 
 If this field is present in the directory object, clients SHOULD NOT
@@ -93,7 +93,7 @@ The "supportedValidationMethods" field lists validation methods
 (also called "challenge types") supported by the server.  Its value
 SHALL be a JSON array of JSON strings, each of which SHOULD be a
 value that is registered in the IANA ACME Validation Methods
-registry (TODO ref?).  The array SHOULD include each validation
+registry [@?IANA-ACME-VAL].  The array SHOULD include each validation
 method supported by the server.
 
 If this field is present in the directory object, clients SHOULD NOT
@@ -182,7 +182,7 @@ possible future work.
 ## ACME Directory Metadata Fields
 
 Please add the following entries to the ACME Directory Metadata
-Fields registry:
+Fields registry [@?IANA-ACME-META]:
 
     +----------------------------+-----------------+-----------+
     | Field Name                 | Field Type      | Reference |
@@ -199,3 +199,22 @@ of [@!RFC8555].
 
 
 {backmatter}
+
+<reference anchor="IANA-ACME-ID" target="https://www.iana.org/assignments/acme/acme.xhtml#acme-identifier-types">
+    <front>
+        <title>ACME Identifier Types</title>
+        <author><organization>IANA</organization></author>
+    </front>
+</reference>
+<reference anchor="IANA-ACME-VAL" target="https://www.iana.org/assignments/acme/acme.xhtml#acme-validation-methods">
+    <front>
+        <title>ACME Validation Methods</title>
+        <author><organization>IANA</organization></author>
+    </front>
+</reference>
+<reference anchor="IANA-ACME-META" target="https://www.iana.org/assignments/acme/acme.xhtml#acme-directory-metadata-fields">
+    <front>
+        <title>ACME Directory Metadata Fields</title>
+        <author><organization>IANA</organization></author>
+    </front>
+</reference>
