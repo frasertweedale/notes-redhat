@@ -28,6 +28,10 @@
         <xsl:copy-of select="."/>
     </xsl:template>
 
+    <!-- Remove empty <date/> elems from <reference> elems -->
+    <xsl:template match="//reference/front/date[not(@year)][not(@month)][not(@day)]">
+    </xsl:template>
+
     <!-- Fix I-D targets in <xref> nodes -->
     <xsl:template match="//xref/@target[starts-with(string(), 'I-D')]">
         <xsl:attribute name="target">
