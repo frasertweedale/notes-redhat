@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+<xsl:stylesheet version="1.0"
+        xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+        xmlns:str="http://exslt.org/strings"
+>
     <xsl:template match="@* | node()">
         <xsl:copy>
             <xsl:apply-templates select="@* | node()"/>
         </xsl:copy>
     </xsl:template>
 
+    <!-- Add sortRefs="true" attribute to <rfc> -->
     <xsl:template match="/rfc">
         <xsl:copy>
             <xsl:apply-templates select="@*"/>
@@ -14,6 +18,7 @@
         </xsl:copy>
     </xsl:template>
 
+    <!-- Add displayreference nodes as first children of <back> -->
     <xsl:template match="/rfc/back/*[1]" xmlns:xi="http://www.w3.org/2001/XInclude">
         <xsl:element name="xi:include">
             <xsl:attribute name="href">displayreference.xml</xsl:attribute>
@@ -21,5 +26,12 @@
         </xsl:element>
         <xsl:text>&#xa;</xsl:text>
         <xsl:copy-of select="."/>
+    </xsl:template>
+
+    <!-- Fix I-D targets in <xref> nodes -->
+    <xsl:template match="//xref/@target[starts-with(string(), 'I-D')]">
+        <xsl:attribute name="target">
+            <xsl:value-of select="str:replace(str:replace(string(), 'draft-', ''), concat('-', str:split(string(), '-')[last()]), '')" />
+        </xsl:attribute>
     </xsl:template>
 </xsl:stylesheet>
