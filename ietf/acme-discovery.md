@@ -53,10 +53,18 @@ impossible for ACME clients to obtain certificates from a publicly
 accessible ACME servers, or an organisation may prefer clients to
 use a particular server.  Explicitly configuring ACME clients to use
 a particular ACME server presents an administrative burden.
+Furthermore, a service discovery mechanism could allow newly
+connected systems to opportunistically locate an ACME server and
+acquire certificates, without operator (human or otherwise)
+intervention.
 
 This document specifies a mechanism by which ACME clients can locate
-an ACME server using DNS-Based Service Discovery
-[@!RFC6763].
+an ACME server using DNS-Based Service Discovery [@!RFC6763].
+Network administrators can advertise one or more ACME servers and
+express their endorsed capabilities (identifier types and validation
+methods) and priorities.  Capable clients can discover the
+advertised services and use the most preferred service that
+satisfies its requirements and is reachable.
 
 # Terminology
 
