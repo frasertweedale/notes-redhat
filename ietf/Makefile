@@ -1,14 +1,17 @@
 DOCS = $(basename $(shell ls *.md))
 
-all: $(addprefix output/,$(DOCS))
+all: $(addprefix output/,$(addsuffix /.done,$(DOCS)))
 
-%.xml: %.md tweak.xsl
-	mmark $< | xsltproc tweak.xsl - > $@
-
-output/%: %.xml
-	$(eval NAME=$(shell xmllint $< --xpath "string(/rfc/@docName)"))
-	mkdir -p $@
-	cp $< $@/$(NAME).xml
-	xml2rfc $< --out $@/$(NAME).txt --text
-	xml2rfc $< --out $@/$(NAME).html --html
+output/%/.done: %.md %-displayref.xml tweak.xsl
+	mkdir -p $(dir $@)
+	mmark $< | xsltproc tweak.xsl - > $(dir $@)/$(addsuffix .xml,$(basename $<))
+	cp $(word 2,$^) $(dir $@)/displayreference.xml
+	( \
+		cd $(dir $@) ; \
+		NAME=$$(xmllint $(addsuffix .xml,$(basename $<)) --xpath "string(/rfc/@docName)") ; \
+		echo $$NAME ; \
+		mv $(addsuffix .xml,$(basename $<)) $$NAME.xml ; \
+		xml2rfc $$NAME.xml --out $$NAME.txt --text ; \
+		xml2rfc $$NAME.xml --out $$NAME.html --html ; \
+	)
 	touch $@
