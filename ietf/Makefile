@@ -10,7 +10,8 @@ output/%/.done: %.md %-displayref.xml tweak.xsl
 		cd $(dir $@) ; \
 		NAME=$$(xmllint $(addsuffix .xml,$(basename $<)) --xpath "string(/rfc/@docName)") ; \
 		echo $$NAME ; \
-		mv $(addsuffix .xml,$(basename $<)) $$NAME.xml ; \
+		xml2rfc $(addsuffix .xml,$(basename $<)) --out $$NAME.xml --expand ; \
+		rm $(addsuffix .xml,$(basename $<)) ; \
 		xml2rfc $$NAME.xml --out $$NAME.txt --text ; \
 		xml2rfc $$NAME.xml --out $$NAME.html --html ; \
 	)
