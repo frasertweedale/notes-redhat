@@ -103,7 +103,7 @@ methods include methods that the client is capable of performing.
 # Example Directory Object
 
 The following example extends the example directory object from
-[@!RFC8555] Section 7.1.1 with the "supportedIdentifierTypes" and
+Section 7.1.1 of [@!RFC8555] with the "supportedIdentifierTypes" and
 "supportedValidationMethods" fields.  This server advertises support
 for the "dns" and "ip" identifier types and the "dns-01" and
 "tls-alpn-01" validation methods.
@@ -170,7 +170,7 @@ clients would be able to select a suitable server with greater
 accuracy.
 
 No practical mechanism could express all possible server policies
-(e.g. "don't issue certificates to people named "Bob" on Tuesdays).
+(e.g. "don't issue certificates to people named Bob on Tuesdays").
 It is also unclear whether it is worth the effort to devise and
 implement a server policy advertisement mechanism, or if it is
 better to allow clients to experience failures and fall back to
