@@ -41,9 +41,6 @@ Other setup steps:
 - polkit policy to allow user to control libvirtd without
   password prompt: https://superuser.com/questions/548433/how-do-i-prevent-virt-manager-from-asking-for-the-root-password
 
-- allow users in ``wheel`` to run docker commands:
-  ``chown root:wheel /var/run/docker.sock``
-
 - In ``/etc/systemd/logind.conf``, set ``KillUserProcesses=no``
   so that systemd does not kill tmux session on logout
   (or gnome-shell crash).
@@ -79,6 +76,5 @@ Other setup steps:
 Haskell dev
 ===========
 
-- ``sudo dnf copr enable petersen/stack``
-- ``sudo dnf install ghc-compiler stack cabal-install``
+- ``sudo dnf install ghc-compiler cabal-install``
 - ``sudo dnf install ghc-ghc-devel happy`` (for building ghc-mod)
