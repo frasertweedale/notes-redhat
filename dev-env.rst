@@ -7,7 +7,7 @@ Fedora devel machine
 
   git zsh tmux vim the_silver_searcher
   @buildsys-build @c-development
-  ldapvi mozldap-tools
+  ldapvi
   ltrace strace gdb
   util-linux-user (f24+; provides chsh)
   hub
@@ -28,7 +28,7 @@ In addition to the above:
 - mail: ``mutt fetchmail maildrop notmuch thunderbird lynx``
 - irc: ``irssi``
 - containers: ``podman``
-- security: ``wireshark-gtk testssl``
+- security: ``wireshark testssl``
 - virt: ``virt-manager libguestfs-tools-c libvirt-client``
 - textproc: ``texlive-collection-latex pandoc pandoc-pdf texlive-beamer texlive-ulem``
 - multimedia: ``gimp inkscape gpodder``
@@ -38,12 +38,8 @@ Other setup steps:
 
 - ``systemctl enable sshd``
 
-- polkit policy to allow user to control libvirtd without
-  password prompt: https://superuser.com/questions/548433/how-do-i-prevent-virt-manager-from-asking-for-the-root-password
+- ``usermod -a -G libvirt,wireshark $(id -un)``
 
-- In ``/etc/systemd/logind.conf``, set ``KillUserProcesses=no``
-  so that systemd does not kill tmux session on logout
-  (or gnome-shell crash).
 
 ``gnome-terminal`` configuration
 --------------------------------
