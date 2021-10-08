@@ -1,3 +1,23 @@
+libvirt IPv6 setup
+==================
+
+1. Enable XML editing of network configuration in preferences.
+
+2. Edit > Connection Details > Virtual Networks
+
+3. Add ``ipv6="yes"`` attribute to ``<network>`` element.
+
+4. Add new ``<ip>`` element::
+
+    <ip family="ipv6" address="fd00::1" prefix="64">
+    </ip>
+
+5. Apply and Reboot
+
+
+Prepare cloud image
+===================
+
 - fedora cloud image http://fedoraproject.org/get-fedora#clouds
 - guest must be shut down
 - set up password::
