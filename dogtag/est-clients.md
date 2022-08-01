@@ -16,5 +16,5 @@ Simple enroll:
 ```shell
 % EST_OPENSSL_CACERT=~/cacert.pem ./example/client/estclient \
     -s $EST_SERVER -p $EST_PORT -o $OUT_DIR --pem-output -g \
-    --common-name "CN=$HOSTNAME"
+    --common-name "$(hostname)"
 ```
