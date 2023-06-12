@@ -40,6 +40,6 @@ ext4) filesystem::
 
   # resize2fs /dev/fedora/home
 
-Instead of ``lvextend`` followed by ``resize2fs``::
+Or for **XFS**::
 
-  # lvresize --resizefs /path/to/lv /path/to/pv
+  # xfs_growfs /dev/fedora_fedora/root
